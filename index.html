@@ -1357,7 +1357,7 @@ function examFill(i, v){ if(!state.params.answers) state.params.answers={}; stat
 /* ========== 扫一扫改题讲题 ========== */
 let pickedPhoto = null;      // 预览用图片URL
 let pickedDataUrl = null;    // base64（发给视觉AI）
-function aiCfg(){ return store.get('ai', {base:'https://api.deepseek.com/v1', key:'sk-7344f0edb8da4cc7a9b76f2ee190bd54', model:'deepseek-v4-flash-vision-exp'}); }
+function aiCfg(){ return store.get('ai', {base:'https://api.deepseek.com/v1', key:'', model:'deepseek-v4-flash-vision-exp'}); }
 function saveAICfg(cfg){ store.set('ai', cfg); }
 
 function scanHTML(){
