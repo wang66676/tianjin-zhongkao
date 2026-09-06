@@ -1040,8 +1040,9 @@ let prac = store.get('prac', {});            // colKey -> {n:答题数, ok:正�
 let exams = store.get('exams', []);          // 模考记录
 let dict = store.get('dict', { records:{}, plan:{source:'全部词库（合并）', daily:10, mode:'cn2en'}, done:{} });
 let pq = store.get('pq', {});
-let auth = store.get('auth', null);
+let users = store.get('users', null);
 let sess = store.get('sess', null);
+let authMode = 'auto'; // auto|setup（登录页切到注册）
 function cyrb53(str, seed){
   let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
   for (let i = 0; i < str.length; i++) { const ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
@@ -1051,51 +1052,60 @@ function cyrb53(str, seed){
 }
 function hashPw(pw, salt){ return cyrb53(pw, salt >>> 0).toString(16) + '-' + cyrb53('tz' + pw + String(salt), ((salt >>> 0) + 0x9e3779b9) >>> 0).toString(16); }
 function newSalt(){ try{ if(window.crypto && crypto.getRandomValues){ const a = new Uint32Array(2); crypto.getRandomValues(a); return (a[0] >>> 0) + 0x7f4a7c15; } }catch(e){} return (Date.now() % 0x7fffffff) + 1; }
-function authLocked(){ return !auth || !sess; }
+function curAuth(){ return (sess && users && users[sess.u]) ? { user: sess.u, salt: users[sess.u].salt, hash: users[sess.u].hash } : null; }
+function whoAmI(){ const a = curAuth(); return a ? a.user : ''; }
+function authLocked(){ return !users || !Object.keys(users).length || !curAuth(); }
 function authSetupDo(u, p){
   if(!u || u.trim().length < 2){ toast('用户名至少 2 位'); return; }
   if(!p || p.length < 4){ toast('密码至少 4 位'); return; }
+  const name = u.trim();
+  if(users && users[name]){ toast('该用户名已存在，请换一个或直接登录'); return; }
   const salt = newSalt();
-  auth = { user: u.trim(), salt: salt, hash: hashPw(p, salt) };
-  store.set('auth', auth);
-  sess = { u: auth.user, t: Date.now() };
+  if(!users) users = {};
+  users[name] = { salt: salt, hash: hashPw(p, salt) };
+  store.set('users', users);
+  sess = { u: name, t: Date.now() };
   store.set('sess', sess);
+  authMode = 'auto';
   toast('账号创建成功，已进入系统');
   render();
 }
 function authLoginDo(u, p){
-  if(!auth) return;
-  if(u && u.trim() === auth.user && hashPw(p || '', auth.salt) === auth.hash){
-    sess = { u: auth.user, t: Date.now() };
+  const rec = (users && u) ? users[u.trim()] : null;
+  if(rec && hashPw(p || '', rec.salt) === rec.hash){
+    sess = { u: u.trim(), t: Date.now() };
     store.set('sess', sess);
+    authMode = 'auto';
     toast('登录成功');
     render();
   } else { toast('账号或密码错误'); }
 }
-function authLogoutDo(){ sess = null; store.set('sess', null); toast('已退出登录'); render(); }
+function authLogoutDo(){ sess = null; store.set('sess', null); authMode = 'auto'; toast('已退出登录'); render(); }
 function authResetDo(){
-  if(!confirm('确认重置系统？将清除本机全部数据（账号、错题、默写记录等），且无法恢复。')) return;
+  if(!confirm('确认重置系统？将清除本机全部数据（所有账号、错题、默写记录等），且无法恢复。')) return;
   try{ Object.keys(localStorage).filter(k=>k.indexOf('tjzk_')===0).forEach(k=>localStorage.removeItem(k)); }catch(e){}
   location.reload();
 }
 function authChangeDo(oldp, np){
-  if(!auth) return;
-  if(hashPw(oldp || '', auth.salt) !== auth.hash){ toast('当前密码不正确'); return; }
+  const me = curAuth(); if(!me) return;
+  if(hashPw(oldp || '', me.salt) !== me.hash){ toast('当前密码不正确'); return; }
   if(!np || np.length < 4){ toast('新密码至少 4 位'); return; }
-  auth.hash = hashPw(np, auth.salt);
-  store.set('auth', auth);
+  users[me.user].hash = hashPw(np, me.salt);
+  store.set('users', users);
   toast('密码已修改');
   render();
 }
 function authHTML(){
-  if(!auth){
+  const noUsers = !users || !Object.keys(users).length;
+  if(noUsers || authMode === 'setup'){
     return `
-  <div class="card" style="margin-top:16px"><h3>👤 首次使用：创建管理员账号</h3>
-    <div class="muted" style="margin-bottom:10px">本系统需登录后才能使用（已关闭免密/游客访问）。账号仅保存在本机，密码经加盐哈希存储、不上传网络。</div>
+  <div class="card" style="margin-top:16px"><h3>👤 创建账号</h3>
+    <div class="muted" style="margin-bottom:10px">本系统需登录后才能使用（已关闭免密/游客访问）。账号密码仅保存在本机、加盐哈希存储、不上传网络；每个账号可在“我的→AI设置”填自己的 Key。</div>
     <div class="field"><label>用户名</label><input id="auUser" placeholder="给自己起个用户名（≥2位）"></div>
     <div class="field"><label>密码（≥4位，请牢记）</label><input id="auPass" type="password" placeholder="设置密码"></div>
     <div class="field"><label>确认密码</label><input id="auPass2" type="password" placeholder="再输一次"></div>
     <button class="btn block" data-act="authSetup">🔐 创建账号并进入</button>
+    ${noUsers? '' : '<button class="btn block ghost" data-act="authBack" style="margin-top:10px">← 返回登录</button>'}
   </div>
   <div class="muted" style="text-align:center">隐私保护：密码不明文存储、不打印、不上传；请勿将此文件转发给他人。</div>`;
   }
@@ -1104,6 +1114,7 @@ function authHTML(){
     <div class="field"><label>用户名</label><input id="auUser" placeholder="输入用户名"></div>
     <div class="field"><label>密码</label><input id="auPass" type="password" placeholder="输入密码"></div>
     <button class="btn block" data-act="authLogin">🔓 登录</button>
+    <button class="btn block ghost" data-act="authReg" style="margin-top:10px">➕ 注册新账号（本机多账号）</button>
   </div>
   <div class="card"><h3>🆘 忘记密码？</h3>
     <div class="muted" style="margin-bottom:8px">本机登录不联网，忘记密码只能“重置系统”（清空本机全部数据后重新创建账号）。</div>
@@ -1111,10 +1122,11 @@ function authHTML(){
   </div>`;
 }
 function accountHTML(){
+  const me = whoAmI();
   return `
   <div class="card"><h3>👤 账号与安全</h3>
-    <div class="between" style="padding:4px 0"><span class="muted">当前账号</span><b>${auth?esc(auth.user):'-'}</b></div>
-    <div class="muted" style="margin-top:4px">密码经加盐哈希仅存本机，不上传网络。请勿把含本机账号设置的文件转发给他人。</div>
+    <div class="between" style="padding:4px 0"><span class="muted">当前账号</span><b>${esc(me||'-')}</b></div>
+    <div class="muted" style="margin-top:4px">每个账号可填自己的 AI Key（互不影响）；密码经加盐哈希仅存本机，不上传网络。</div>
   </div>
   <div class="card"><h3>🔑 修改密码</h3>
     <div class="field"><label>当前密码</label><input id="acOld" type="password"></div>
@@ -1126,7 +1138,6 @@ function accountHTML(){
   <button class="btn block danger" data-act="authReset" style="margin-top:10px">⚠ 重置系统（清空本机全部数据）</button>
   `;
 }
-
 const state = { tab:'home', page:'home', title:'首页', params:{} };
 let hist = [];
 
@@ -1451,8 +1462,15 @@ function examFill(i, v){ if(!state.params.answers) state.params.answers={}; stat
 /* ========== 扫一扫改题讲题 ========== */
 let pickedPhoto = null;      // 预览用图片URL
 let pickedDataUrl = null;    // base64（发给视觉AI）
-function aiCfg(){ return store.get('ai', {base:'https://api.deepseek.com/v1', key:'', model:'deepseek-v4-flash-vision-exp'}); }
-function saveAICfg(cfg){ store.set('ai', cfg); }
+function aiCfg(){
+  const u = (sess && sess.u) ? sess.u : '';
+  const k = u ? ('aiu_' + u) : 'ai';
+  return store.get(k, {base:'https://api.deepseek.com/v1', key:'', model:'deepseek-v4-flash-vision-exp'});
+}
+function saveAICfg(cfg){
+  const u = (sess && sess.u) ? sess.u : '';
+  store.set(u ? ('aiu_' + u) : 'ai', cfg);
+}
 
 function scanHTML(){
   const ai = aiCfg();
@@ -1909,7 +1927,7 @@ function mineHTML(){
     <div class="small" style="margin-top:6px;opacity:.9">解锁：真题解析 / 视频精讲 / 智能组卷 / 学习报告 / 错题 Word 导出 / 扫一扫高频次</div>
   </div>
   <div class="card"><h3>👤 账号与安全</h3>
-    <div class="between" style="padding:4px 0"><span class="muted">当前账号</span><b>${auth?esc(auth.user):'-'}</b></div>
+    <div class="between" style="padding:4px 0"><span class="muted">当前账号</span><b>${esc(whoAmI()||'-')}</b></div>
     <div class="flex" style="margin-top:10px;gap:8px">
       <button class="btn block ghost" data-act="nav" data-page="account" data-title="账号与安全">🔑 账号与安全</button>
       <button class="btn block" data-act="authLogout">🚪 退出登录</button>
@@ -1920,7 +1938,7 @@ function mineHTML(){
     <div class="field"><label>API Key</label><input id="aiKey" type="password" value="${esc(aiCfg().key)}" placeholder="sk-..."></div>
     <div class="field"><label>模型（识别图片请用视觉模型，如 qwen-vl-max / gpt-4o / glm-4v）</label><input id="aiModel" value="${esc(aiCfg().model)}"></div>
     <button class="btn block" data-act="saveAI">💾 保存设置</button>
-    <div class="muted" style="margin-top:6px">Key 仅保存在本机浏览器，用于“扫一扫”联网讲解任意科目/任意题型（已作答先判对错；未作答直接给答案，均含答题思路与知识点详解）。未配置时可使用网络检索。</div>
+    <div class="muted" style="margin-top:6px">登录后如需 AI 判题讲题，请<b>填自己的 Key</b>（每个账号各存各的、互不影响）；<b>不填 Key 其它功能照常可用</b>，或点“网络检索本题”。已作答→先判对错；未作答→直接给答案，均含答题思路与知识点详解。Key 仅存本机当前账号，不上传。</div>
   </div>
   <div class="sec">数据管理</div>
   <div class="li" data-act="clearSample"><span class="ic">🧹</span><div class="tx"><div class="t">清空示例错题</div><div class="s">保留你自己加入的错题</div></div><span class="arrow">›</span></div>
@@ -2161,6 +2179,9 @@ document.addEventListener('click', e=>{
       authChangeDo(o, n1); break;
     }
     case 'authReset': authResetDo(); break;
+    case 'authReg': authMode = 'setup'; render(); break;
+    case 'authBack': authMode = 'auto'; render(); break;
+
     case 'saveAI': {
       const g = (i)=> document.getElementById(i) ? document.getElementById(i).value.trim() : '';
       saveAICfg({base: g('aiBase') || 'https://api.deepseek.com/v1', key: g('aiKey'), model: g('aiModel') || 'deepseek-v4-flash-vision-exp'});
