@@ -1124,6 +1124,10 @@ function authHTML(){
 function accountHTML(){
   const me = whoAmI();
   return `
+  <div class="card"><h3>🔒 授权状态</h3>
+    <div class="between" style="padding:4px 0"><span class="muted">状态</span><b>${esc(licStatusText())}</b></div>
+    <button class="btn block ghost" data-act="nav" data-page="license" data-title="授权与试用" style="margin-top:8px">🔑 授权管理 / 输入授权码</button>
+  </div>
   <div class="card"><h3>👤 账号与安全</h3>
     <div class="between" style="padding:4px 0"><span class="muted">当前账号</span><b>${esc(me||'-')}</b></div>
     <div class="muted" style="margin-top:4px">每个账号可填自己的 AI Key（互不影响）；密码经加盐哈希仅存本机，不上传网络。</div>
@@ -1136,6 +1140,81 @@ function accountHTML(){
   </div>
   <button class="btn block ghost" data-act="authLogout">🚪 退出登录</button>
   <button class="btn block danger" data-act="authReset" style="margin-top:10px">⚠ 重置系统（清空本机全部数据）</button>
+  `;
+}
+/* ===== 授权与试用（7天试用 / 作者授权 / 30元每年） ===== */
+const LIC_SECRET = 'TZ-ZHONGKAO-2026-AUTH#v1';
+const TRIAL_DAYS = 7;
+const LIC_PRICE = '30元/年';
+const LIC_NOTE = '制作不易，且用且珍惜。试用期 7 天；到期后请联系作者购买使用权限（' + LIC_PRICE + '，AI 费用自理），把“用户名”发给作者，作者激活后即可使用 1 年。';
+let lic = store.get('lic', null);        // {user, code}
+let firstRun = store.get('firstRun', null);
+if(!firstRun){ firstRun = new Date().toISOString(); store.set('firstRun', firstRun); }
+function b64u(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function unb64u(s){ s = String(s||'').replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4){ s += '='; } return decodeURIComponent(escape(atob(s))); }
+function licSig(u, exp){ return cyrb53('A|'+u+'|'+exp+'|'+LIC_SECRET, 0x5bd1e995).toString(16) + '-' + cyrb53('B|'+u+'|'+exp+'|'+LIC_SECRET, 0x9e3779b9).toString(16); }
+function licMakeCode(user, expISO){ const payload = b64u(user + '\n' + expISO); return payload + '.' + licSig(user, expISO); }
+function licInfo(){
+  if(!lic || !lic.code) return null;
+  try{
+    const dot = lic.code.indexOf('.');
+    if(dot < 0) return null;
+    const dec = unb64u(lic.code.slice(0, dot));
+    const sig = lic.code.slice(dot + 1);
+    const nl = dec.indexOf('\n');
+    if(nl < 0) return null;
+    const user = dec.slice(0, nl), exp = dec.slice(nl + 1);
+    if(licSig(user, exp) !== sig) return null;
+    if(new Date(exp).getTime() < Date.now()) return null;
+    return { user: user, exp: exp };
+  }catch(e){ return null; }
+}
+function licDaysLeft(){
+  const start = new Date(firstRun || Date.now()).getTime();
+  return Math.max(0, TRIAL_DAYS - Math.floor((Date.now() - start) / 86400000));
+}
+function licLocked(){ return !!licInfo() ? false : licDaysLeft() <= 0; }
+function licActivateDo(user, code){
+  try{
+    const dot = String(code||'').indexOf('.');
+    if(dot < 0){ toast('授权码格式不正确'); return; }
+    const dec = unb64u(code.slice(0, dot));
+    const sig = code.slice(dot + 1);
+    const nl = dec.indexOf('\n');
+    const u2 = dec.slice(0, nl), exp = dec.slice(nl + 1);
+    if(String(u2).trim().toLowerCase() !== String(user||'').trim().toLowerCase()){ toast('用户名与授权码不匹配'); return; }
+    if(licSig(u2, exp) !== sig){ toast('授权码无效'); return; }
+    if(new Date(exp).getTime() < Date.now()){ toast('该授权已过期'); return; }
+    lic = { user: u2.trim(), code: String(code) };
+    store.set('lic', lic);
+    toast('激活成功！有效期至 ' + exp.slice(0,10));
+    render();
+  }catch(e){ toast('授权码格式不正确'); }
+}
+function licStatusText(){
+  const info = licInfo();
+  if(info) return '已授权 · 有效期至 ' + info.exp.slice(0,10);
+  const left = licDaysLeft();
+  return left > 0 ? ('试用期剩余 ' + left + ' 天') : '试用已结束（未授权）';
+}
+function licenseHTML(){
+  const info = licInfo();
+  const left = licDaysLeft();
+  const locked = licLocked();
+  return `
+  <div class="card" style="margin-top:16px"><h3>🔒 授权与试用</h3>
+    <div class="muted" style="line-height:1.8">
+      ${info? ('✅ 当前状态：<b>已授权</b>（账号 ' + esc(info.user) + '）<br>有效期至：' + esc(info.exp.slice(0,10)) + ' ｜ 到期前无需续费') : (left>0? ('⏳ 当前状态：<b>试用中</b>（剩余 ' + left + ' 天）') : ('⛔ 当前状态：<b>试用已结束</b>'))}
+    </div>
+    ${locked? '<div style="margin-top:10px;background:#fee2e2;border-radius:10px;padding:10px 12px;font-size:13px;color:#991b1b;line-height:1.8">试用期已结束，所有功能已暂停使用。' + LIC_NOTE + '</div>' : ''}
+  </div>
+  <div class="card"><h3>🔑 输入授权码激活（1 年）</h3>
+    <div class="field"><label>用户名（发给作者的那个）</label><input id="luUser" placeholder="输入用户名"></div>
+    <div class="field"><label>授权码（作者给你的）</label><input id="luCode" placeholder="粘贴授权码"></div>
+    <button class="btn block" data-act="licActivate">✅ 激活（' + LIC_PRICE + ' · 1年）</button>
+    <div class="muted" style="margin-top:8px;line-height:1.7">' + LIC_NOTE + '</div>
+  </div>
+  <div class="muted" style="text-align:center">AI 联网讲解等费用由使用者自理（软件内自行接入）。</div>
   `;
 }
 const state = { tab:'home', page:'home', title:'首页', params:{} };
@@ -1155,6 +1234,13 @@ function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.get
 
 /* ========== 渲染骨架 ========== */
 function render(){
+  if(licLocked()){
+    document.getElementById('topbar').innerHTML = '<div class="topbar" style="background:linear-gradient(135deg,#7f1d1d,#1e3a8a)"><h1>🔒 天津中考复习App · 授权</h1></div>';
+    document.getElementById('tabbar').innerHTML = '';
+    document.getElementById('view').innerHTML = licenseHTML();
+    window.scrollTo(0,0);
+    return;
+  }
   if(authLocked()){
     document.getElementById('topbar').innerHTML = '<div class="topbar" style="background:linear-gradient(135deg,#0f172a,#1e3a8a)"><h1>🔐 天津中考复习App</h1></div>';
     document.getElementById('tabbar').innerHTML = '';
@@ -1191,6 +1277,7 @@ function pageHTML(){
     case 'dictGrade': return dictGradeHTML();
     case 'dictStats': return dictStatsHTML();
     case 'account': return accountHTML();
+    case 'license': return licenseHTML();
     case 'report': return reportHTML();
     case 'mine': return mineHTML();
     default: return homeHTML();
@@ -1926,6 +2013,10 @@ function mineHTML(){
     <div class="between"><b>⭐ 中考 VIP 会员</b><span class="badge" style="background:rgba(255,255,255,.25);color:#fff">演示</span></div>
     <div class="small" style="margin-top:6px;opacity:.9">解锁：真题解析 / 视频精讲 / 智能组卷 / 学习报告 / 错题 Word 导出 / 扫一扫高频次</div>
   </div>
+  <div class="card"><h3>🔒 授权状态</h3>
+    <div class="between" style="padding:4px 0"><span class="muted">状态</span><b>${esc(licStatusText())}</b></div>
+    <button class="btn block ghost" data-act="nav" data-page="license" data-title="授权与试用" style="margin-top:8px">🔑 授权管理 / 输入授权码</button>
+  </div>
   <div class="card"><h3>👤 账号与安全</h3>
     <div class="between" style="padding:4px 0"><span class="muted">当前账号</span><b>${esc(whoAmI()||'-')}</b></div>
     <div class="flex" style="margin-top:10px;gap:8px">
@@ -2157,6 +2248,11 @@ document.addEventListener('click', e=>{
       if(dict.plan.source === '自定义导入词表') dict.plan.source = '中考核心词汇';
       store.set('dict', dict);
       toast('已清空自定义词表'); render(); break;
+    }
+    case 'licActivate': {
+      const u = (document.getElementById('luUser')||{}).value || '';
+      const c = (document.getElementById('luCode')||{}).value || '';
+      licActivateDo(u, c); break;
     }
     case 'authSetup': {
       const u = (document.getElementById('auUser')||{}).value || '';
