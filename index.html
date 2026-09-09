@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.3';
+const APP_VER = '1.0.4';
 (function(){
   try{
     const nh = localStorage.getItem('tz_newhtml');
@@ -1986,17 +1986,29 @@ async function handleDictFile(file){
     pickedDictImg = null;
     if(box) box.innerHTML = '<img src="'+url+'" style="max-width:70%;border-radius:8px">';
     const fr = new FileReader();
-    fr.onload = ()=>{ pickedDictImg = fr.result; };
+    fr.onload = ()=>{
+      pickedDictImg = fr.result;
+      const ai = aiCfg();
+      if(ai && ai.key){
+        toast('🤖 已自动开始 AI 识别判对错…');
+        setTimeout(()=>{ dictAiGradeDo(); }, 500);
+      } else {
+        if(box){
+          const hint = document.createElement('div');
+          hint.style.cssText = 'margin-top:6px;color:#fcd34d;font-size:12px';
+          hint.textContent = '未填 AI Key，无法自动识别手写。请到「我的→AI设置」填 Key，或点下方“手动逐词核对”。';
+          box.appendChild(hint);
+        }
+      }
+    };
     fr.readAsDataURL(file);
-    const ai = aiCfg();
     if(box){
       const wrap = document.createElement('div');
       wrap.style.cssText = 'margin-top:8px;text-align:center';
-      const aiBtn = (ai && ai.key) ? '<button class="btn sm" data-act="dictAiGrade" style="margin:0 4px">🤖 AI 自动批改</button>' : '';
-      wrap.innerHTML = aiBtn + '<button class="btn sm ghost" data-act="dictRetake" style="margin:0 4px">📷 重新拍照</button>';
+      wrap.innerHTML = '<button class="btn sm ghost" data-act="dictRetake" style="margin:0 4px">📷 重新拍照</button>';
       box.appendChild(wrap);
     }
-    toast('图片已就绪' + (ai && ai.key ? '：可点「🤖 AI 自动批改」或「手动逐词核对」；不满意可「📷 重新拍照」' : '：可「手动逐词核对」，不满意可「📷 重新拍照」（填 AI Key 后可自动识别）'));
+    toast('图片已就绪，正在处理…');
     return;
   }
   let text = '';
