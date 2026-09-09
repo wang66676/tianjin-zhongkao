@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.4';
+const APP_VER = '1.0.5';
 (function(){
   try{
     const nh = localStorage.getItem('tz_newhtml');
@@ -1230,26 +1230,28 @@ function licenseHTML(){
   <div class="muted" style="text-align:center">AI 联网讲解等费用由使用者自理（软件内自行接入）。</div>
   `;
 }
-/* ===== 在线更新 ===== */
+/* ===== 在线更新（版本清单式） ===== */
 const APP_UPD_URL = 'https://wang66676.github.io/tianjin-zhongkao/update.json';
 function verCmp(a, b){ const pa=String(a).split('.').map(Number), pb=String(b).split('.').map(Number); for(let i=0;i<Math.max(pa.length,pb.length);i++){ const x=pa[i]||0, y=pb[i]||0; if(x>y) return 1; if(x<y) return -1; } return 0; }
 function updateHTML(){
-  const st = window.__upd || {state:'idle', ver:'', note:''};
-  return `
+  const st = window.__upd || {state:'idle', list:[]};
+  let html = `
   <div class="card" style="margin-top:6px"><h3>📥 软件更新</h3>
     <div class="between" style="padding:4px 0"><span class="muted">当前版本</span><b>v${APP_VER}</b></div>
-    <div class="muted">更新方式：在线获取（联网自动从发布源下载新版，本机数据保留）</div>
+    <div class="muted">在线获取新版本（本机数据保留）。如有多个新版本，会全部列出，可逐个更新直到最新。</div>
   </div>
-  <button class="btn block" data-act="chkUpdate">🔍 检查更新</button>
-  ${st.state==='new'? `
-    <div class="card" style="margin-top:10px;border:1px solid #bfdbfe;background:#eff6ff"><h3>✨ 发现新版本 v${esc(st.ver)}</h3>
-      <div style="line-height:1.8;font-size:13px;white-space:pre-wrap">${esc(st.note)}</div>
-      <button class="btn block success" data-act="doUpdate" style="margin-top:10px">⬇ 立即在线更新</button>
-      <div class="muted" style="margin-top:6px">更新后账号、错题、授权等本机数据都会保留。</div>
-    </div>` : ''}
-  ${st.state==='ok'? '<div class="card" style="margin-top:10px;background:#dcfce7"><b>✅ 已是最新版本 v' + esc(APP_VER) + '</b></div>' : ''}
-  ${st.state==='err'? '<div class="card" style="margin-top:10px;background:#fee2e2">检查更新失败（请联网后重试）。</div>' : ''}
-  `;
+  <button class="btn block" data-act="chkUpdate">🔍 检查更新</button>`;
+  if(st.state==='ok'){ html += '<div class="card" style="margin-top:10px;background:#dcfce7"><b>✅ 已是最新版本 v' + esc(APP_VER) + '</b></div>'; }
+  if(st.state==='err'){ html += '<div class="card" style="margin-top:10px;background:#fee2e2">检查更新失败（请联网后重试）。</div>'; }
+  if(st.state==='new' && st.list && st.list.length){
+    const last = st.list[st.list.length - 1];
+    html += '<div class="card" style="margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe"><h3>✨ 发现 ' + st.list.length + ' 个新版本</h3><div class="muted">当前 v' + esc(APP_VER) + ' → 可逐个更新到最新 v' + esc(last.version) + '：</div></div>';
+    st.list.forEach(function(v){
+      html += '<div class="card" style="margin-top:10px;border:1px solid #e2e8f0"><div class="between"><b>v' + esc(v.version) + '</b><span class="muted">' + esc(v.date || '') + '</span></div><div style="line-height:1.7;font-size:13px;white-space:pre-wrap">' + esc(v.note || '') + '</div><button class="btn block" data-act="doUpdate" data-ver="' + esc(v.version) + '" data-url="' + esc(v.url || '') + '" style="margin-top:8px">⬇ 更新到 v' + esc(v.version) + '</button></div>';
+    });
+    html += '<div class="muted" style="margin-top:8px">每更新完一个版本，可再点「🔍 检查更新」继续下一个，直到最新 v' + esc(last.version) + '。</div>';
+  }
+  return html;
 }
 async function chkUpdateDo(){
   toast('正在检查更新…');
@@ -1257,21 +1259,22 @@ async function chkUpdateDo(){
     const r = await fetch(APP_UPD_URL + '?t=' + Date.now());
     if(!r.ok) throw new Error('http' + r.status);
     const j = await r.json();
-    const newer = verCmp(String(j.version||'0'), APP_VER) > 0;
-    window.__upd = { state: newer ? 'new' : 'ok', ver: String(j.version||APP_VER), note: String(j.note||'') };
-    render();
-    if(!newer) toast('已是最新版本');
-  }catch(e){ window.__upd = {state:'err'}; render(); }
+    const all = (j.versions && j.versions.length) ? j.versions : [];
+    const list = all.filter(v => verCmp(String(v.version || '0'), APP_VER) > 0);
+    if(!list.length){ window.__upd = {state:'ok', list:[]}; render(); toast('已是最新版本'); }
+    else { window.__upd = {state:'new', list:list}; render(); }
+  }catch(e){ window.__upd = {state:'err', list:[]}; render(); }
 }
-async function doUpdateDo(){
-  toast('正在下载新版…');
+async function doUpdateVerDo(ver, url){
+  if(!url){ toast('该版本缺少下载地址'); return; }
+  toast('正在下载 v' + ver + '…');
   try{
-    const r = await fetch('https://wang66676.github.io/tianjin-zhongkao/index.html?t=' + Date.now());
+    const r = await fetch(url + '?t=' + Date.now());
     if(!r.ok) throw new Error('http' + r.status);
     const html = await r.text();
     if(!html || html.length < 50000) throw new Error('下载内容异常');
     localStorage.setItem('tz_newhtml', html);
-    toast('已下载，正在应用更新…');
+    toast('已下载 v' + ver + '，正在应用更新…');
     location.reload();
   }catch(e){ toast('更新失败：' + e.message + '，请联网后重试'); }
 }
@@ -2390,7 +2393,7 @@ document.addEventListener('click', e=>{
     case 'dictRetake': dictRetakeDo(); break;
     case 'dictAiGrade': dictAiGradeDo(); break;
     case 'chkUpdate': chkUpdateDo(); break;
-    case 'doUpdate': doUpdateDo(); break;
+    case 'doUpdate': doUpdateVerDo(el.getAttribute('data-ver'), el.getAttribute('data-url')); break;
     case 'licActivate': {
       const u = (document.getElementById('luUser')||{}).value || '';
       const c = (document.getElementById('luCode')||{}).value || '';
