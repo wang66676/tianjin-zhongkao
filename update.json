@@ -1,4 +1,16 @@
 {
-  "version": "1.0.4",
-  "note": "v1.0.4：修复默写拍照不能自动比对判对错——拍照/选图后（已填 AI Key）自动识别手写并判对错；未填 Key 时给出明确提示与手动核对入口。"
+  "versions": [
+    {
+      "note": "v1.0.4：修复默写拍照不能自动比对——拍照/选图后自动识别手写并判对错；未填 Key 给明确提示。",
+      "version": "1.0.4",
+      "date": "2026-09-09",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.4/index.html"
+    },
+    {
+      "note": "v1.0.5：软件更新升级为“版本清单式”——把尚未更新的所有版本逐条列出，可逐个更新直到最新。",
+      "version": "1.0.5",
+      "date": "2026-09-09",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.5/index.html"
+    }
+  ]
 }
