@@ -127,6 +127,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <div id="toast"></div>
 <script>
 'use strict';
+/* ===== 在线更新：版本号 + 自更新应用 ===== */
+const APP_VER = '1.0.3';
+(function(){
+  try{
+    const nh = localStorage.getItem('tz_newhtml');
+    if(nh && nh.length > 50000){
+      localStorage.removeItem('tz_newhtml');
+      document.open();
+      document.write(nh);
+      document.close();
+    }
+  }catch(e){}
+})();
 /* ========== 科目与栏目（成品版全量） ========== */
 const SUBJECTS = [
   {id:'chinese', name:'语文', score:'120分 · 闭卷', icon:'📖', color:'#e11d48', columns:['基础积累与运用','古诗文默写','文言文阅读','现代文阅读','名著阅读','写作','天津真题与模拟']},
@@ -1217,6 +1230,51 @@ function licenseHTML(){
   <div class="muted" style="text-align:center">AI 联网讲解等费用由使用者自理（软件内自行接入）。</div>
   `;
 }
+/* ===== 在线更新 ===== */
+const APP_UPD_URL = 'https://wang66676.github.io/tianjin-zhongkao/update.json';
+function verCmp(a, b){ const pa=String(a).split('.').map(Number), pb=String(b).split('.').map(Number); for(let i=0;i<Math.max(pa.length,pb.length);i++){ const x=pa[i]||0, y=pb[i]||0; if(x>y) return 1; if(x<y) return -1; } return 0; }
+function updateHTML(){
+  const st = window.__upd || {state:'idle', ver:'', note:''};
+  return `
+  <div class="card" style="margin-top:6px"><h3>📥 软件更新</h3>
+    <div class="between" style="padding:4px 0"><span class="muted">当前版本</span><b>v${APP_VER}</b></div>
+    <div class="muted">更新方式：在线获取（联网自动从发布源下载新版，本机数据保留）</div>
+  </div>
+  <button class="btn block" data-act="chkUpdate">🔍 检查更新</button>
+  ${st.state==='new'? `
+    <div class="card" style="margin-top:10px;border:1px solid #bfdbfe;background:#eff6ff"><h3>✨ 发现新版本 v${esc(st.ver)}</h3>
+      <div style="line-height:1.8;font-size:13px;white-space:pre-wrap">${esc(st.note)}</div>
+      <button class="btn block success" data-act="doUpdate" style="margin-top:10px">⬇ 立即在线更新</button>
+      <div class="muted" style="margin-top:6px">更新后账号、错题、授权等本机数据都会保留。</div>
+    </div>` : ''}
+  ${st.state==='ok'? '<div class="card" style="margin-top:10px;background:#dcfce7"><b>✅ 已是最新版本 v' + esc(APP_VER) + '</b></div>' : ''}
+  ${st.state==='err'? '<div class="card" style="margin-top:10px;background:#fee2e2">检查更新失败（请联网后重试）。</div>' : ''}
+  `;
+}
+async function chkUpdateDo(){
+  toast('正在检查更新…');
+  try{
+    const r = await fetch(APP_UPD_URL + '?t=' + Date.now());
+    if(!r.ok) throw new Error('http' + r.status);
+    const j = await r.json();
+    const newer = verCmp(String(j.version||'0'), APP_VER) > 0;
+    window.__upd = { state: newer ? 'new' : 'ok', ver: String(j.version||APP_VER), note: String(j.note||'') };
+    render();
+    if(!newer) toast('已是最新版本');
+  }catch(e){ window.__upd = {state:'err'}; render(); }
+}
+async function doUpdateDo(){
+  toast('正在下载新版…');
+  try{
+    const r = await fetch('https://wang66676.github.io/tianjin-zhongkao/index.html?t=' + Date.now());
+    if(!r.ok) throw new Error('http' + r.status);
+    const html = await r.text();
+    if(!html || html.length < 50000) throw new Error('下载内容异常');
+    localStorage.setItem('tz_newhtml', html);
+    toast('已下载，正在应用更新…');
+    location.reload();
+  }catch(e){ toast('更新失败：' + e.message + '，请联网后重试'); }
+}
 const state = { tab:'home', page:'home', title:'首页', params:{} };
 let hist = [];
 
@@ -1278,6 +1336,7 @@ function pageHTML(){
     case 'dictStats': return dictStatsHTML();
     case 'account': return accountHTML();
     case 'license': return licenseHTML();
+    case 'update': return updateHTML();
     case 'report': return reportHTML();
     case 'mine': return mineHTML();
     default: return homeHTML();
@@ -1897,6 +1956,7 @@ function dictTaskHTML(){
   <button class="btn block" data-act="dictGradeGo">✍️ 不拍照 / 不传文件：手动逐词核对</button>
   `;
 }
+let pickedDictImg = null;
 function looksLikeText(s){ const sample = String(s||'').slice(0,4000); const letters = (sample.match(/[A-Za-z\u4e00-\u9fff]/g)||[]).length; const total = sample.length||1; return (letters/total) > 0.5; }
 function loadScript(src){ return new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=()=>rej(new Error('联网加载解析组件失败')); document.head.appendChild(sc); }); }
 async function extractPdfText(file){
@@ -1923,8 +1983,20 @@ async function handleDictFile(file){
   if(isImg){
     const url = URL.createObjectURL(file);
     const box = document.getElementById('dictCamInner');
+    pickedDictImg = null;
     if(box) box.innerHTML = '<img src="'+url+'" style="max-width:70%;border-radius:8px">';
-    toast('图片已就绪：点下方「手动逐词核对」开始批改');
+    const fr = new FileReader();
+    fr.onload = ()=>{ pickedDictImg = fr.result; };
+    fr.readAsDataURL(file);
+    const ai = aiCfg();
+    if(box){
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-top:8px;text-align:center';
+      const aiBtn = (ai && ai.key) ? '<button class="btn sm" data-act="dictAiGrade" style="margin:0 4px">🤖 AI 自动批改</button>' : '';
+      wrap.innerHTML = aiBtn + '<button class="btn sm ghost" data-act="dictRetake" style="margin:0 4px">📷 重新拍照</button>';
+      box.appendChild(wrap);
+    }
+    toast('图片已就绪' + (ai && ai.key ? '：可点「🤖 AI 自动批改」或「手动逐词核对」；不满意可「📷 重新拍照」' : '：可「手动逐词核对」，不满意可「📷 重新拍照」（填 AI Key 后可自动识别）'));
     return;
   }
   let text = '';
@@ -1936,6 +2008,36 @@ async function handleDictFile(file){
   }catch(e){ toast('解析失败：'+e.message+'（可把内容另存为 .txt 后上传）'); return; }
   if(!text || !text.trim() || !looksLikeText(text)){ toast('未从文件中读到可批改的文字（扫描版 PDF 请转图片后拍照上传）'); return; }
   autoGradeTxt(text);
+}
+async function dictAiGradeDo(){
+  if(!pickedDictImg){ toast('请先拍照或选择默写图片'); return; }
+  const ai = aiCfg();
+  if(!ai || !ai.key){ toast('AI 识别需先填 Key：我的 → AI 设置'); return; }
+  const words = todayWords().map(w=>w.en).join('、');
+  toast('🤖 AI 识别默写中，请稍候…');
+  try{
+    const res = await fetch(String(ai.base||'').replace(/\/$/,'') + '/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+ai.key},
+      body: JSON.stringify({model:ai.model||'deepseek-v4-flash', temperature:0.1, messages:[
+        {role:'system', content:'你是英语默写批改助手。请识别图片中学生手写的英文单词/短语，只输出识别到的内容，每行一个单词，不要序号、音标、释义或任何说明。'},
+        {role:'user', content:[{type:'text', text:'目标词：'+words+'. 请输出识别到的学生所写内容。'}, {type:'image_url', image_url:{url:pickedDictImg}}]}
+      ]})
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    if(!text || !text.trim()) throw new Error('未识别到内容');
+    autoGradeTxt(text);
+  }catch(e){ toast('AI 识别失败：'+e.message); }
+}
+function dictRetakeDo(){
+  pickedDictImg = null;
+  const box = document.getElementById('dictCamInner');
+  const f = document.getElementById('dictFile');
+  if(f) f.value = '';
+  if(box) box.innerHTML = '<span style="font-size:28px">📄</span><p class="small" style="margin-top:6px">重新拍摄 / 选择默写图片…</p>';
+  if(f) f.click();
 }
 function autoGradeTxt(text){
   const words = todayWords();
@@ -2054,6 +2156,7 @@ function mineHTML(){
     <button class="btn block" data-act="saveAI">💾 保存设置</button>
     <div class="muted" style="margin-top:6px">登录后如需 AI 判题讲题，请<b>填自己的 Key</b>（每个账号各存各的、互不影响）；<b>不填 Key 其它功能照常可用</b>，或点“网络检索本题”。已作答→先判对错；未作答→直接给答案，均含答题思路与知识点详解。Key 仅存本机当前账号，不上传。</div>
   </div>
+  <div class="li" data-act="nav" data-page="update" data-title="软件更新"><span class="ic">📥</span><div class="tx"><div class="t">软件更新</div><div class="s">在线检查并安装新版本</div></div><span class="arrow">›</span></div>
   <div class="sec">数据管理</div>
   <div class="li" data-act="clearSample"><span class="ic">🧹</span><div class="tx"><div class="t">清空示例错题</div><div class="s">保留你自己加入的错题</div></div><span class="arrow">›</span></div>
   <div class="li" data-act="resetAll"><span class="ic">♻️</span><div class="tx"><div class="t">重置全部数据</div><div class="s">清空错题、默写、练习与模考记录</div></div><span class="arrow">›</span></div>
@@ -2272,6 +2375,10 @@ document.addEventListener('click', e=>{
       store.set('dict', dict);
       toast('已清空自定义词表'); render(); break;
     }
+    case 'dictRetake': dictRetakeDo(); break;
+    case 'dictAiGrade': dictAiGradeDo(); break;
+    case 'chkUpdate': chkUpdateDo(); break;
+    case 'doUpdate': doUpdateDo(); break;
     case 'licActivate': {
       const u = (document.getElementById('luUser')||{}).value || '';
       const c = (document.getElementById('luCode')||{}).value || '';
