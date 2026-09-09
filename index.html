@@ -128,15 +128,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.5';
+const APP_VER = '1.0.7';
 (function(){
   try{
-    const nh = localStorage.getItem('tz_newhtml');
-    if(nh && nh.length > 50000){
+    const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
+    const fresh = localStorage.getItem('tz_newhtml');
+    if(fresh && fresh.length > 50000){
+      const v = verOf(fresh);
+      if(v){ localStorage.setItem('tz_persist', fresh); localStorage.setItem('tz_persist_ver', v); }
       localStorage.removeItem('tz_newhtml');
-      document.open();
-      document.write(nh);
-      document.close();
+    }
+    const pv = localStorage.getItem('tz_persist_ver') || '';
+    if(pv && verCmp(pv, APP_VER) > 0){
+      const h = localStorage.getItem('tz_persist');
+      if(h && h.length > 50000){ document.open(); document.write(h); document.close(); }
     }
   }catch(e){}
 })();
@@ -1232,6 +1237,24 @@ function licenseHTML(){
 }
 /* ===== 在线更新（版本清单式） ===== */
 const APP_UPD_URL = 'https://wang66676.github.io/tianjin-zhongkao/update.json';
+function saveUpdatedHtml(html, ver){
+  try{
+    if(window.AndroidStore && typeof window.AndroidStore.saveHtml === 'function'){
+      window.AndroidStore.saveHtml(html);
+      try{ localStorage.removeItem('tz_persist'); localStorage.removeItem('tz_persist_ver'); localStorage.removeItem('tz_newhtml'); }catch(e){}
+      toast('已保存新版 v' + ver + '，正在重启应用…');
+      setTimeout(function(){ location.reload(); }, 500);
+      return;
+    }
+  }catch(e){}
+  try{
+    localStorage.setItem('tz_persist', html);
+    localStorage.setItem('tz_persist_ver', ver);
+    localStorage.removeItem('tz_newhtml');
+  }catch(e){}
+  toast('已下载 v' + ver + '，正在应用更新…');
+  setTimeout(function(){ location.reload(); }, 400);
+}
 function verCmp(a, b){ const pa=String(a).split('.').map(Number), pb=String(b).split('.').map(Number); for(let i=0;i<Math.max(pa.length,pb.length);i++){ const x=pa[i]||0, y=pb[i]||0; if(x>y) return 1; if(x<y) return -1; } return 0; }
 function updateHTML(){
   const st = window.__upd || {state:'idle', list:[]};
@@ -1273,9 +1296,7 @@ async function doUpdateVerDo(ver, url){
     if(!r.ok) throw new Error('http' + r.status);
     const html = await r.text();
     if(!html || html.length < 50000) throw new Error('下载内容异常');
-    localStorage.setItem('tz_newhtml', html);
-    toast('已下载 v' + ver + '，正在应用更新…');
-    location.reload();
+    saveUpdatedHtml(html, ver);
   }catch(e){ toast('更新失败：' + e.message + '，请联网后重试'); }
 }
 const state = { tab:'home', page:'home', title:'首页', params:{} };
