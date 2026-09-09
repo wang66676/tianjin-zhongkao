@@ -1,16 +1,24 @@
 {
+  "version": "1.0.6",
+  "note": "v1.0.6：修复旧版无法检测更新、更新重启失效；更新后永久生效。",
   "versions": [
     {
-      "note": "v1.0.4：修复默写拍照不能自动比对——拍照/选图后自动识别手写并判对错；未填 Key 给明确提示。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.4/index.html",
       "version": "1.0.4",
-      "date": "2026-09-09",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.4/index.html"
+      "note": "v1.0.4：修复默写拍照不能自动比对——拍照/选图后自动识别手写并判对错；未填 Key 给明确提示。",
+      "date": "2026-09-09"
     },
     {
-      "note": "v1.0.5：软件更新升级为“版本清单式”——把尚未更新的所有版本逐条列出，可逐个更新直到最新。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.5/index.html",
       "version": "1.0.5",
-      "date": "2026-09-09",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.5/index.html"
+      "note": "v1.0.5：软件更新升级为版本清单式，把未更新版本逐条列出，可逐个更新到最新。",
+      "date": "2026-09-09"
+    },
+    {
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.6/index.html",
+      "version": "1.0.6",
+      "note": "v1.0.6：修复旧版“已是最新”误判与更新重启失效——更新文件兼容新旧格式；更新后永久生效。",
+      "date": "2026-09-09"
     }
   ]
 }
