@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.7';
+const APP_VER = '1.0.8';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1056,7 +1056,8 @@ let tasks = store.get('tasks', {});
 let bannerOff = store.get('bannerOff', false);
 let prac = store.get('prac', {});            // colKey -> {n:答题数, ok:正确数}
 let exams = store.get('exams', []);          // 模考记录
-let dict = store.get('dict', { records:{}, plan:{source:'全部词库（合并）', daily:10, mode:'cn2en'}, done:{} });
+let dict = store.get('dict', { records:{}, plan:{source:'全部词库（合并）', daily:10, mode:'cn2en'}, done:{}, days:{} });
+if(!dict.days) dict.days = {};
 let pq = store.get('pq', {});
 let users = store.get('users', null);
 let sess = store.get('sess', null);
@@ -1358,6 +1359,7 @@ function pageHTML(){
     case 'dictTask': return dictTaskHTML();
     case 'dictGrade': return dictGradeHTML();
     case 'dictStats': return dictStatsHTML();
+    case 'dictWrongAll': return dictWrongAllHTML();
     case 'account': return accountHTML();
     case 'license': return licenseHTML();
     case 'update': return updateHTML();
@@ -2111,6 +2113,8 @@ function dictStatsHTML(){
   const total = Object.values(dict.records).reduce((a,r)=>a+r.count,0);
   const errs = Object.values(dict.records).reduce((a,r)=>a+r.err,0);
   const acc = total? Math.round((total-errs)/total*100):0;
+  const day = (dict.days && dict.days[todayStr()]) || {wrong:[]};
+  const wrongToday = day.wrong || [];
   return `
   <div class="stat3">
     <div class="it"><b style="color:var(--primary)">${Object.keys(dict.done).length}</b><span>默写天数</span></div>
@@ -2125,7 +2129,11 @@ function dictStatsHTML(){
       <span class="muted">默${x.r.count}次 · 错${x.r.err}次 · 连对${x.r.streak}</span>
       <span class="badge ${isHard(x.en)?'red':'green'}">${isHard(x.en)?'攻克':'正常'}</span></div>`).join('') : '<div class="muted">暂无记录，先去完成一次默写</div>'}
   </div>
-  <div class="flex" style="gap:8px">
+  <div class="card"><h3>📌 今日错词（${wrongToday.length}）</h3>
+    ${wrongToday.length? wrongToday.map(en=>{ const w=wordInfo(en); const r=dict.records[en]||{count:0,err:0,streak:0}; return `<div class="word-row"><span style="flex:1"><span class="en">${esc(en)} <span class="pos">${esc(w.pos||'')}</span></span><span class="cn">${esc(w.cn||'')}</span></span><span class="muted" style="white-space:nowrap">默${r.count}次 · <b style="color:var(--danger)">错${r.err}次</b></span><span class="play" data-act="speak" data-word="${esc(en)}">🔊</span></div>`; }).join('') : '<div class="muted">今天没有错词 🎉 继续保持！</div>'}
+  </div>
+  <button class="btn block danger" data-act="nav" data-page="dictWrongAll" data-title="默写错题合集">📚 默写错题合集（全部错词 · 按错误次数排序）</button>
+  <div class="flex" style="gap:8px;margin-top:10px">
     <button class="btn block" data-act="nav" data-page="dictTask" data-title="今日默写">✍️ 重新默写</button>
     <button class="btn block ghost" data-act="nav" data-page="dict" data-title="英语计划性默写">← 返回</button>
   </div>
@@ -2133,7 +2141,26 @@ function dictStatsHTML(){
 }
 
 /* ========== 学习报告 ========== */
-function reportHTML(){
+function wordInfo(en){
+  const b = currentBank();
+  let w = b.find(x=>x.en===en);
+  if(w) return w;
+  for(const k in WORD_BANK){ const f=(WORD_BANK[k]||[]).find(x=>x.en===en); if(f) return f; }
+  return {en:en, pos:'', cn:''};
+}
+function dictWrongAllHTML(){
+  const rows = Object.entries(dict.records).filter(x=>x[1] && x[1].err>0).map(x=>({en:x[0], r:x[1], w:wordInfo(x[0])})).sort((a,b)=> (b.r.err - a.r.err) || (b.r.count - a.r.count));
+  return `
+  <div class="card"><h3>📚 默写错题合集（${rows.length} 个）</h3>
+    <div class="muted">已按“错误总次数”从多到少排列；点 🔊 可反复试听。</div>
+  </div>
+  ${rows.length? rows.map((x,idx)=>`<div class="word-row"><span class="badge ${idx<3?'red':'amber'}" style="min-width:30px;text-align:center">${idx+1}</span>
+      <span style="flex:1"><span class="en">${esc(x.en)} <span class="pos">${esc(x.w.pos||'')}</span></span><span class="cn">${esc(x.w.cn||'')}</span></span>
+      <span class="muted" style="white-space:nowrap">默${x.r.count}次 · <b style="color:var(--danger)">错${x.r.err}次</b> · 连对${x.r.streak}</span>
+      <span class="play" data-act="speak" data-word="${esc(x.en)}">🔊</span></div>`).join('') : '<div class="empty">暂无错词记录</div>'}
+  <button class="btn block ghost" data-act="nav" data-page="dictStats" data-title="默写统计">← 返回统计</button>
+  `;
+}function reportHTML(){
   const bySub = {}; wrongBook.forEach(w=> bySub[w.sub]=(bySub[w.sub]||0)+1);
   const arr = Object.entries(bySub).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const max = arr.length? arr[0][1] : 1;
@@ -2382,6 +2409,8 @@ document.addEventListener('click', e=>{
         dict.records[w.en] = r;
       });
       dict.done[todayStr()] = words.length;
+      dict.days = dict.days || {};
+      dict.days[todayStr()] = { words: words.map(w=>w.en), wrong: words.filter((w,i)=> g[i]==='0').map(w=>w.en) };
       store.set('dict', dict);
       toast('已存档：默写次数 / 错误次数已更新');
       navTo('dictStats', '默写统计', {}); break;
