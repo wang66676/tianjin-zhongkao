@@ -1,30 +1,30 @@
 {
-  "version": "1.0.7",
-  "note": "v1.0.7：安卓在线更新永久生效修复（请安装 1.0.7 后即可长期在线更新）。",
   "versions": [
     {
-      "version": "1.0.4",
-      "date": "2026-09-09",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.4/index.html",
-      "note": "v1.0.4：修复默写拍照不能自动比对——拍照后自动识别判对错。"
-    },
-    {
-      "version": "1.0.5",
       "date": "2026-09-09",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.5/index.html",
-      "note": "v1.0.5：更新模块版本清单化，可逐个更新。"
+      "version": "1.0.5",
+      "note": "v1.0.5：更新模块版本清单化，可逐个更新到最新。"
     },
     {
-      "version": "1.0.6",
       "date": "2026-09-09",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.6/index.html",
-      "note": "v1.0.6：修复旧版误判已最新、更新重启失效。"
+      "version": "1.0.6",
+      "note": "v1.0.6：修复旧版误判“已是最新”、更新重启失效。"
     },
     {
-      "version": "1.0.7",
       "date": "2026-09-09",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.7/index.html",
-      "note": "v1.0.7：安卓更新改为“可写文件+原生保存”——在线更新后永久生效，不再退回旧版。"
+      "version": "1.0.7",
+      "note": "v1.0.7：安卓在线更新永久生效（可写文件+原生保存）。"
+    },
+    {
+      "date": "2026-09-13",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.8/index.html",
+      "version": "1.0.8",
+      "note": "v1.0.8：默写统计页新增“今日错词（含默写/错误次数）”；底新增“默写错题合集”，按错误总次数排序展示全部错词。"
     }
-  ]
+  ],
+  "version": "1.0.8",
+  "note": "v1.0.8：默写统计升级——今日错词统计 + 错题合集（按错误次数排序）。"
 }
