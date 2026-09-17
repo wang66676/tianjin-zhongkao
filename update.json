@@ -2,29 +2,29 @@
   "versions": [
     {
       "date": "2026-09-09",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.5/index.html",
-      "version": "1.0.5",
-      "note": "v1.0.5：更新模块版本清单化，可逐个更新到最新。"
-    },
-    {
-      "date": "2026-09-09",
+      "note": "v1.0.6：修复旧版误判“已是最新”、更新重启失效。",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.6/index.html",
-      "version": "1.0.6",
-      "note": "v1.0.6：修复旧版误判“已是最新”、更新重启失效。"
+      "version": "1.0.6"
     },
     {
       "date": "2026-09-09",
+      "note": "v1.0.7：安卓在线更新永久生效（可写文件+原生保存）。",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.7/index.html",
-      "version": "1.0.7",
-      "note": "v1.0.7：安卓在线更新永久生效（可写文件+原生保存）。"
+      "version": "1.0.7"
     },
     {
       "date": "2026-09-13",
+      "note": "v1.0.8：默写统计新增“今日错词”和“默写错题合集（按错误次数排序）”。",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.8/index.html",
-      "version": "1.0.8",
-      "note": "v1.0.8：默写统计页新增“今日错词（含默写/错误次数）”；底新增“默写错题合集”，按错误总次数排序展示全部错词。"
+      "version": "1.0.8"
+    },
+    {
+      "date": "2026-09-17",
+      "note": "v1.0.9：今日错词卡置顶；错词合集改为折叠（点击展开）；准确率拆分显示“当日准确率 + 整体准确率”。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.9/index.html",
+      "version": "1.0.9"
     }
   ],
-  "version": "1.0.8",
-  "note": "v1.0.8：默写统计升级——今日错词统计 + 错题合集（按错误次数排序）。"
+  "note": "v1.0.9：默写统计页升级——今日错词置顶、错词合集折叠、当日/整体准确率。",
+  "version": "1.0.9"
 }
