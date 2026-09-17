@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.10';
+const APP_VER = '1.0.11';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1922,6 +1922,7 @@ function dictHTML(){
   const errs = Object.values(dict.records).reduce((a,r)=>a+r.err,0);
   const acc = total? Math.round((total-errs)/total*100):0;
   const hard = currentBank().filter(w=>isHard(w.en));
+  const showHard = !!state.params.showHard;
   return `
   <div class="stat3">
     <div class="it"><b style="color:var(--primary)">${Object.keys(dict.done).length}</b><span>已默写天数</span></div>
@@ -1948,9 +1949,13 @@ function dictHTML(){
     </div>
   </div>
   <div class="card" style="background:#eff6ff"><h3>🔊 有声与词典</h3><div class="muted">每个单词点击 🔊 可<b>反复试听发音</b>（浏览器语音合成，离线可用）；点击 📖 牛津 打开<b>牛津学习者词典</b>词条（需联网）。正式版将内置牛津词典授权数据与真人发音音频，并标注音标。</div></div>
-  <div class="card"><h3>🔴 易错词本 / 重点攻克（${hard.length}）</h3>
-    ${hard.length? hard.map(w=>`<div class="word-row"><span class="en">${w.en} <span class="pos">${w.pos}</span></span><span class="cn">${w.cn}</span><span class="play" data-act="speak" data-word="${w.en}" title="试听发音">🔊</span><a class="ox" href="https://www.oxfordlearnersdictionaries.com/definition/english/${w.en}" target="_blank" rel="noopener">📖 牛津</a><span class="badge red">重点</span></div>`).join('') : '<div class="muted">暂无重点攻克词，完成默写后自动生成</div>'}
+  <div class="card" data-act="toggleHard" style="cursor:pointer">
+    <div class="between"><h3 style="margin:0">🔴 易错词本 / 重点攻克（${hard.length}）</h3><span class="muted">${showHard? '收起 ▲' : '点击展开 ▼'}</span></div>
+    <div class="muted" style="margin-top:4px">点击此卡片${showHard? '收起' : '展开'}查看重点攻克单词</div>
   </div>
+  ${showHard? `<div class="card">
+    ${hard.length? hard.map(w=>`<div class="word-row"><span class="en">${w.en} <span class="pos">${w.pos}</span></span><span class="cn">${w.cn}</span><span class="play" data-act="speak" data-word="${w.en}" title="试听发音">🔊</span><a class="ox" href="https://www.oxfordlearnersdictionaries.com/definition/english/${w.en}" target="_blank" rel="noopener">📖 牛津</a><span class="badge red">重点</span></div>`).join('') : '<div class="muted">暂无重点攻克词，完成默写后自动生成</div>'}
+  </div>` : ''}
   <button class="btn block ghost" data-act="nav" data-page="dictStats" data-title="默写统计">📊 查看单词档案与统计</button>
   `;
 }
@@ -2437,6 +2442,7 @@ document.addEventListener('click', e=>{
     }
     case 'dictRetake': dictRetakeDo(); break;
     case 'toggleArchive': state.params.showArchive = !state.params.showArchive; render(); break;
+    case 'toggleHard': state.params.showHard = !state.params.showHard; render(); break;
     case 'dictAiGrade': dictAiGradeDo(); break;
     case 'chkUpdate': chkUpdateDo(); break;
     case 'doUpdate': doUpdateVerDo(el.getAttribute('data-ver'), el.getAttribute('data-url')); break;
