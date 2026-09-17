@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.8';
+const APP_VER = '1.0.9';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -2109,37 +2109,50 @@ function dictGradeHTML(){
   `;
 }
 function dictStatsHTML(){
-  const rows = Object.entries(dict.records).map(([en,r])=>({en, r, w:currentBank().find(x=>x.en===en)})).sort((a,b)=> (b.r.err/b.r.count)-(a.r.err/a.r.count));
+  const rows = Object.entries(dict.records).map(([en,r])=>({en, r, w:wordInfo(en)})).sort((a,b)=> (b.r.err - a.r.err) || (b.r.count - a.r.count));
   const total = Object.values(dict.records).reduce((a,r)=>a+r.count,0);
   const errs = Object.values(dict.records).reduce((a,r)=>a+r.err,0);
-  const acc = total? Math.round((total-errs)/total*100):0;
-  const day = (dict.days && dict.days[todayStr()]) || {wrong:[]};
+  const accAll = total? Math.round((total-errs)/total*100):0;
+  const day = (dict.days && dict.days[todayStr()]) || {words:[], wrong:[]};
+  const dayWords = (day.words||[]).length;
   const wrongToday = day.wrong || [];
+  const accToday = dayWords ? Math.round((dayWords - wrongToday.length) / dayWords * 100) : null;
+  const wrongRows = rows.filter(x=> x.r.err > 0);
+  const showWrong = !!state.params.showWrong;
   return `
-  <div class="stat3">
-    <div class="it"><b style="color:var(--primary)">${Object.keys(dict.done).length}</b><span>默写天数</span></div>
-    <div class="it"><b style="color:var(--success)">${acc}%</b><span>正确率</span></div>
-    <div class="it"><b style="color:var(--danger)">${rows.filter(x=>isHard(x.en)).length}</b><span>重点攻克</span></div>
-  </div>
-  <div class="card"><h3>📈 累计正确率</h3><div class="bar"><span class="lb">正确率</span><div class="tr"><i style="width:${acc}%;background:var(--success)"></i></div><span class="vl">${acc}%</span></div>
-  <div class="muted" style="margin-top:6px">每次默写：默写次数+1；写错的单词：错误次数+1、连续正确清零</div></div>
-  <div class="card"><h3>📚 单词档案（默写次数 / 错误次数 / 连续正确）</h3>
-    ${rows.length? rows.map(x=>`<div class="word-row"><span style="flex:1"><span class="en">${x.en} <span class="pos">${x.w?x.w.pos:''}</span></span><span class="cn">${x.w?x.w.cn:''}</span></span>
-      <span class="play" data-act="speak" data-word="${x.en}" title="试听发音">🔊</span>
-      <span class="muted">默${x.r.count}次 · 错${x.r.err}次 · 连对${x.r.streak}</span>
-      <span class="badge ${isHard(x.en)?'red':'green'}">${isHard(x.en)?'攻克':'正常'}</span></div>`).join('') : '<div class="muted">暂无记录，先去完成一次默写</div>'}
-  </div>
   <div class="card"><h3>📌 今日错词（${wrongToday.length}）</h3>
     ${wrongToday.length? wrongToday.map(en=>{ const w=wordInfo(en); const r=dict.records[en]||{count:0,err:0,streak:0}; return `<div class="word-row"><span style="flex:1"><span class="en">${esc(en)} <span class="pos">${esc(w.pos||'')}</span></span><span class="cn">${esc(w.cn||'')}</span></span><span class="muted" style="white-space:nowrap">默${r.count}次 · <b style="color:var(--danger)">错${r.err}次</b></span><span class="play" data-act="speak" data-word="${esc(en)}">🔊</span></div>`; }).join('') : '<div class="muted">今天没有错词 🎉 继续保持！</div>'}
   </div>
-  <button class="btn block danger" data-act="nav" data-page="dictWrongAll" data-title="默写错题合集">📚 默写错题合集（全部错词 · 按错误次数排序）</button>
-  <div class="flex" style="gap:8px;margin-top:10px">
+  <div class="stat3">
+    <div class="it"><b style="color:var(--success)">${accToday===null? '—' : accToday + '%'}</b><span>当日准确率</span></div>
+    <div class="it"><b style="color:var(--primary)">${accAll}%</b><span>整体准确率</span></div>
+    <div class="it"><b>${Object.keys(dict.done).length}</b><span>默写天数</span></div>
+  </div>
+  <div class="card"><h3>📈 准确率</h3>
+    <div class="bar"><span class="lb">当日准确率</span><div class="tr"><i style="width:${accToday||0}%;background:var(--success)"></i></div><span class="vl">${accToday===null? '—' : accToday + '%'}</span></div>
+    <div class="bar"><span class="lb">整体准确率</span><div class="tr"><i style="width:${accAll}%;background:var(--primary)"></i></div><span class="vl">${accAll}%</span></div>
+    <div class="muted" style="margin-top:6px">每次默写：默写次数+1；写错的单词：错误次数+1、连续正确清零</div>
+  </div>
+  <div class="card" data-act="toggleWrongAll" style="cursor:pointer">
+    <div class="between"><h3 style="margin:0">📚 默写错题合集（${wrongRows.length}）</h3><span class="muted">${showWrong? '收起 ▲' : '点击展开 ▼'}</span></div>
+    <div class="muted" style="margin-top:4px">按错误总次数从多到少排列，点击此卡片${showWrong? '收起' : '展开'}查看</div>
+  </div>
+  ${showWrong? `<div class="card">
+    ${wrongRows.length? wrongRows.map((x,idx)=>`<div class="word-row"><span class="badge ${idx<3?'red':'amber'}" style="min-width:30px;text-align:center">${idx+1}</span><span style="flex:1"><span class="en">${esc(x.en)} <span class="pos">${esc(x.w.pos||'')}</span></span><span class="cn">${esc(x.w.cn||'')}</span></span><span class="muted" style="white-space:nowrap">默${x.r.count}次 · <b style="color:var(--danger)">错${x.r.err}次</b> · 连对${x.r.streak}</span><span class="play" data-act="speak" data-word="${esc(x.en)}">🔊</span></div>`).join('') : '<div class="muted">暂无错词记录</div>'}
+    <button class="btn block ghost" data-act="nav" data-page="dictWrongAll" data-title="默写错题合集" style="margin-top:8px">打开完整页面</button>
+  </div>` : ''}
+  <div class="card"><h3>📚 单词档案（默写次数 / 错误次数 / 连续正确）</h3>
+    ${rows.length? rows.map(x=>`<div class="word-row"><span style="flex:1"><span class="en">${esc(x.en)} <span class="pos">${esc(x.w?x.w.pos:'')}</span></span><span class="cn">${esc(x.w?x.w.cn:'')}</span></span>
+      <span class="play" data-act="speak" data-word="${esc(x.en)}" title="试听发音">🔊</span>
+      <span class="muted">默${x.r.count}次 · 错${x.r.err}次 · 连对${x.r.streak}</span>
+      <span class="badge ${isHard(x.en)?'red':'green'}">${isHard(x.en)?'攻克':'正常'}</span></div>`).join('') : '<div class="muted">暂无记录，先去完成一次默写</div>'}
+  </div>
+  <div class="flex" style="gap:8px">
     <button class="btn block" data-act="nav" data-page="dictTask" data-title="今日默写">✍️ 重新默写</button>
     <button class="btn block ghost" data-act="nav" data-page="dict" data-title="英语计划性默写">← 返回</button>
   </div>
   `;
 }
-
 /* ========== 学习报告 ========== */
 function wordInfo(en){
   const b = currentBank();
@@ -2441,6 +2454,7 @@ document.addEventListener('click', e=>{
       toast('已清空自定义词表'); render(); break;
     }
     case 'dictRetake': dictRetakeDo(); break;
+    case 'toggleWrongAll': state.params.showWrong = !state.params.showWrong; render(); break;
     case 'dictAiGrade': dictAiGradeDo(); break;
     case 'chkUpdate': chkUpdateDo(); break;
     case 'doUpdate': doUpdateVerDo(el.getAttribute('data-ver'), el.getAttribute('data-url')); break;
