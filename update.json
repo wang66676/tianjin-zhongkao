@@ -1,30 +1,30 @@
 {
   "versions": [
     {
-      "date": "2026-09-09",
-      "version": "1.0.7",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.7/index.html",
-      "note": "v1.0.7：安卓在线更新永久生效（可写文件+原生保存）。"
-    },
-    {
-      "date": "2026-09-13",
       "version": "1.0.8",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.8/index.html",
-      "note": "v1.0.8：默写统计新增“今日错词”和“默写错题合集”。"
+      "date": "2026-09-13",
+      "note": "v1.0.8：默写统计新增“今日错词”和“默写错题合集”。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.8/index.html"
     },
     {
-      "date": "2026-09-17",
       "version": "1.0.9",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.9/index.html",
-      "note": "v1.0.9：今日错词置顶、错词合集折叠、当日/整体准确率。"
+      "date": "2026-09-17",
+      "note": "v1.0.9：今日错词置顶、错词合集折叠、当日/整体准确率。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.9/index.html"
     },
     {
-      "date": "2026-09-17",
       "version": "1.0.10",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.10/index.html",
-      "note": "v1.0.10：去掉错题合集；单词档案改为折叠查看；我的页“软件更新”移到最后。"
+      "date": "2026-09-17",
+      "note": "v1.0.10：去掉错题合集；单词档案改折叠；我的页软件更新移到最后。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.10/index.html"
+    },
+    {
+      "version": "1.0.11",
+      "date": "2026-09-17",
+      "note": "v1.0.11：易错词本/重点攻克 改为折叠，点击展开查看。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.11/index.html"
     }
   ],
-  "version": "1.0.10",
-  "note": "v1.0.10：统计页调整（去掉错题合集、单词档案折叠）+ 我的页软件更新置底。"
+  "version": "1.0.11",
+  "note": "v1.0.11：易错词本/重点攻克改为折叠查看。"
 }
