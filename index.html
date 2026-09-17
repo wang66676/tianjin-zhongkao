@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.9';
+const APP_VER = '1.0.10';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1359,7 +1359,6 @@ function pageHTML(){
     case 'dictTask': return dictTaskHTML();
     case 'dictGrade': return dictGradeHTML();
     case 'dictStats': return dictStatsHTML();
-    case 'dictWrongAll': return dictWrongAllHTML();
     case 'account': return accountHTML();
     case 'license': return licenseHTML();
     case 'update': return updateHTML();
@@ -2117,8 +2116,7 @@ function dictStatsHTML(){
   const dayWords = (day.words||[]).length;
   const wrongToday = day.wrong || [];
   const accToday = dayWords ? Math.round((dayWords - wrongToday.length) / dayWords * 100) : null;
-  const wrongRows = rows.filter(x=> x.r.err > 0);
-  const showWrong = !!state.params.showWrong;
+  const showArch = !!state.params.showArchive;
   return `
   <div class="card"><h3>📌 今日错词（${wrongToday.length}）</h3>
     ${wrongToday.length? wrongToday.map(en=>{ const w=wordInfo(en); const r=dict.records[en]||{count:0,err:0,streak:0}; return `<div class="word-row"><span style="flex:1"><span class="en">${esc(en)} <span class="pos">${esc(w.pos||'')}</span></span><span class="cn">${esc(w.cn||'')}</span></span><span class="muted" style="white-space:nowrap">默${r.count}次 · <b style="color:var(--danger)">错${r.err}次</b></span><span class="play" data-act="speak" data-word="${esc(en)}">🔊</span></div>`; }).join('') : '<div class="muted">今天没有错词 🎉 继续保持！</div>'}
@@ -2133,20 +2131,16 @@ function dictStatsHTML(){
     <div class="bar"><span class="lb">整体准确率</span><div class="tr"><i style="width:${accAll}%;background:var(--primary)"></i></div><span class="vl">${accAll}%</span></div>
     <div class="muted" style="margin-top:6px">每次默写：默写次数+1；写错的单词：错误次数+1、连续正确清零</div>
   </div>
-  <div class="card" data-act="toggleWrongAll" style="cursor:pointer">
-    <div class="between"><h3 style="margin:0">📚 默写错题合集（${wrongRows.length}）</h3><span class="muted">${showWrong? '收起 ▲' : '点击展开 ▼'}</span></div>
-    <div class="muted" style="margin-top:4px">按错误总次数从多到少排列，点击此卡片${showWrong? '收起' : '展开'}查看</div>
+  <div class="card" data-act="toggleArchive" style="cursor:pointer">
+    <div class="between"><h3 style="margin:0">📚 单词档案（${rows.length}）</h3><span class="muted">${showArch? '收起 ▲' : '点击展开 ▼'}</span></div>
+    <div class="muted" style="margin-top:4px">含每个单词的默写次数 / 错误次数 / 连续正确，点击此卡片${showArch? '收起' : '展开'}查看</div>
   </div>
-  ${showWrong? `<div class="card">
-    ${wrongRows.length? wrongRows.map((x,idx)=>`<div class="word-row"><span class="badge ${idx<3?'red':'amber'}" style="min-width:30px;text-align:center">${idx+1}</span><span style="flex:1"><span class="en">${esc(x.en)} <span class="pos">${esc(x.w.pos||'')}</span></span><span class="cn">${esc(x.w.cn||'')}</span></span><span class="muted" style="white-space:nowrap">默${x.r.count}次 · <b style="color:var(--danger)">错${x.r.err}次</b> · 连对${x.r.streak}</span><span class="play" data-act="speak" data-word="${esc(x.en)}">🔊</span></div>`).join('') : '<div class="muted">暂无错词记录</div>'}
-    <button class="btn block ghost" data-act="nav" data-page="dictWrongAll" data-title="默写错题合集" style="margin-top:8px">打开完整页面</button>
-  </div>` : ''}
-  <div class="card"><h3>📚 单词档案（默写次数 / 错误次数 / 连续正确）</h3>
+  ${showArch? `<div class="card">
     ${rows.length? rows.map(x=>`<div class="word-row"><span style="flex:1"><span class="en">${esc(x.en)} <span class="pos">${esc(x.w?x.w.pos:'')}</span></span><span class="cn">${esc(x.w?x.w.cn:'')}</span></span>
       <span class="play" data-act="speak" data-word="${esc(x.en)}" title="试听发音">🔊</span>
       <span class="muted">默${x.r.count}次 · 错${x.r.err}次 · 连对${x.r.streak}</span>
       <span class="badge ${isHard(x.en)?'red':'green'}">${isHard(x.en)?'攻克':'正常'}</span></div>`).join('') : '<div class="muted">暂无记录，先去完成一次默写</div>'}
-  </div>
+  </div>` : ''}
   <div class="flex" style="gap:8px">
     <button class="btn block" data-act="nav" data-page="dictTask" data-title="今日默写">✍️ 重新默写</button>
     <button class="btn block ghost" data-act="nav" data-page="dict" data-title="英语计划性默写">← 返回</button>
@@ -2161,19 +2155,7 @@ function wordInfo(en){
   for(const k in WORD_BANK){ const f=(WORD_BANK[k]||[]).find(x=>x.en===en); if(f) return f; }
   return {en:en, pos:'', cn:''};
 }
-function dictWrongAllHTML(){
-  const rows = Object.entries(dict.records).filter(x=>x[1] && x[1].err>0).map(x=>({en:x[0], r:x[1], w:wordInfo(x[0])})).sort((a,b)=> (b.r.err - a.r.err) || (b.r.count - a.r.count));
-  return `
-  <div class="card"><h3>📚 默写错题合集（${rows.length} 个）</h3>
-    <div class="muted">已按“错误总次数”从多到少排列；点 🔊 可反复试听。</div>
-  </div>
-  ${rows.length? rows.map((x,idx)=>`<div class="word-row"><span class="badge ${idx<3?'red':'amber'}" style="min-width:30px;text-align:center">${idx+1}</span>
-      <span style="flex:1"><span class="en">${esc(x.en)} <span class="pos">${esc(x.w.pos||'')}</span></span><span class="cn">${esc(x.w.cn||'')}</span></span>
-      <span class="muted" style="white-space:nowrap">默${x.r.count}次 · <b style="color:var(--danger)">错${x.r.err}次</b> · 连对${x.r.streak}</span>
-      <span class="play" data-act="speak" data-word="${esc(x.en)}">🔊</span></div>`).join('') : '<div class="empty">暂无错词记录</div>'}
-  <button class="btn block ghost" data-act="nav" data-page="dictStats" data-title="默写统计">← 返回统计</button>
-  `;
-}function reportHTML(){
+function reportHTML(){
   const bySub = {}; wrongBook.forEach(w=> bySub[w.sub]=(bySub[w.sub]||0)+1);
   const arr = Object.entries(bySub).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const max = arr.length? arr[0][1] : 1;
@@ -2232,7 +2214,6 @@ function mineHTML(){
     <button class="btn block" data-act="saveAI">💾 保存设置</button>
     <div class="muted" style="margin-top:6px">登录后如需 AI 判题讲题，请<b>填自己的 Key</b>（每个账号各存各的、互不影响）；<b>不填 Key 其它功能照常可用</b>，或点“网络检索本题”。已作答→先判对错；未作答→直接给答案，均含答题思路与知识点详解。Key 仅存本机当前账号，不上传。</div>
   </div>
-  <div class="li" data-act="nav" data-page="update" data-title="软件更新"><span class="ic">📥</span><div class="tx"><div class="t">软件更新</div><div class="s">在线检查并安装新版本</div></div><span class="arrow">›</span></div>
   <div class="sec">数据管理</div>
   <div class="li" data-act="clearSample"><span class="ic">🧹</span><div class="tx"><div class="t">清空示例错题</div><div class="s">保留你自己加入的错题</div></div><span class="arrow">›</span></div>
   <div class="li" data-act="resetAll"><span class="ic">♻️</span><div class="tx"><div class="t">重置全部数据</div><div class="s">清空错题、默写、练习与模考记录</div></div><span class="arrow">›</span></div>
@@ -2243,6 +2224,7 @@ function mineHTML(){
     <div class="muted" style="margin-top:10px;line-height:1.7">本成品版含 10 科知识点（诠释+举例）、练习题库、仿真模考、扫一扫、错题本与 Word 导出、英语计划性默写。正式版将接入：OCR 识别、云端账号、标准 .docx、记忆曲线推送。</div>
   </div>
   <button class="btn block ghost" data-act="nav" data-page="report" data-title="学习报告">📊 查看学习报告</button>
+  <div class="li" data-act="nav" data-page="update" data-title="软件更新"><span class="ic">📥</span><div class="tx"><div class="t">软件更新</div><div class="s">在线检查并安装新版本</div></div><span class="arrow">›</span></div>
   `;
 }
 /* ========== 导航 ========== */
@@ -2454,7 +2436,7 @@ document.addEventListener('click', e=>{
       toast('已清空自定义词表'); render(); break;
     }
     case 'dictRetake': dictRetakeDo(); break;
-    case 'toggleWrongAll': state.params.showWrong = !state.params.showWrong; render(); break;
+    case 'toggleArchive': state.params.showArchive = !state.params.showArchive; render(); break;
     case 'dictAiGrade': dictAiGradeDo(); break;
     case 'chkUpdate': chkUpdateDo(); break;
     case 'doUpdate': doUpdateVerDo(el.getAttribute('data-ver'), el.getAttribute('data-url')); break;
