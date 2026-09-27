@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.14';
+const APP_VER = '1.0.15';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -2015,7 +2015,7 @@ function dictListenHTML(){
   const words = todayWords();
   return `
   <div class="card"><h3>🎧 今日听写（${words.length} 词）</h3>
-    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后朗读<b>中文 + 词性，共 3 遍</b>；<b>每一遍读完后停 1 秒再读下一遍</b>；<b>每个单词总间隔 15 秒</b>，请对照序号写出英文单词。</div>
+    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后朗读<b>中文 + 词性，共 3 遍</b>；<b>每一遍读完后停 1 秒再读下一遍</b>；<b>每个单词总间隔 20 秒</b>，请对照序号写出英文单词。</div>
     <div id="listenInfo" style="margin-top:8px;font-weight:600;color:var(--primary)">准备就绪，点击下方「开始听写」</div>
     <div class="flex" style="gap:8px;margin-top:10px">
       <button class="btn block" data-act="listenStart">▶ 开始听写</button>
@@ -2049,7 +2049,7 @@ function dictListenStartDo(){
   if(!words.length){ toast('今日没有听写单词'); return; }
   dictListenStopDo();
   const runId = listenRunId;
-  let idx = 0, left = 15;
+  let idx = 0, left = 20;
   const info = function(){
     const el = document.getElementById('listenInfo');
     if(el) el.textContent = '正在听写：第 ' + (idx+1) + ' / ' + words.length + ' 题 · 剩余 ' + left + ' 秒（中文+词性读3遍）';
@@ -2062,7 +2062,7 @@ function dictListenStartDo(){
   };
   const readOne = function(){
     const w = words[idx];
-    left = 15;
+    left = 20;
     const cnPos = (w.cn || '') + '，' + (w.pos || '');
     // 题号读完 → 停 1 秒 → 读第 1 遍；之后每遍读完后停 1 秒再读下一遍（共 3 遍）
     const rep = function(n){
