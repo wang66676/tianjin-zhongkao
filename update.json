@@ -1,30 +1,30 @@
 {
-  "note": "v1.0.14：听写朗读改为“读完一遍 → 停1秒 → 下一遍”（共3遍）。",
-  "version": "1.0.14",
   "versions": [
     {
-      "note": "v1.0.11：易错词本/重点攻克改为折叠。",
-      "version": "1.0.11",
-      "date": "2026-09-17",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.11/index.html"
-    },
-    {
-      "note": "v1.0.12：默写升级为听写（题号+中文+词性，15秒/词），批改仅保留手动逐词核对。",
       "version": "1.0.12",
-      "date": "2026-09-27",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.12/index.html"
+      "note": "v1.0.12：默写升级为听写（题号+中文+词性），批改仅保留手动逐词核对。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.12/index.html",
+      "date": "2026-09-27"
     },
     {
-      "note": "v1.0.13：听写朗读优化（中文+词性读3遍，每遍间隔1秒）。",
       "version": "1.0.13",
-      "date": "2026-09-27",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.13/index.html"
+      "note": "v1.0.13：听写朗读优化（中文+词性读3遍）。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.13/index.html",
+      "date": "2026-09-27"
     },
     {
-      "note": "v1.0.14：听写改为“每遍朗读结束后再停 1 秒”读下一遍（共3遍），不再固定间隔，长句不会被截断。",
       "version": "1.0.14",
-      "date": "2026-09-27",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.14/index.html"
+      "note": "v1.0.14：听写改为“每遍读完后再停1秒”读下一遍（共3遍）。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.14/index.html",
+      "date": "2026-09-27"
+    },
+    {
+      "version": "1.0.15",
+      "note": "v1.0.15：每个单词听写间隔由 15 秒改为 20 秒。",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.15/index.html",
+      "date": "2026-09-27"
     }
-  ]
+  ],
+  "version": "1.0.15",
+  "note": "v1.0.15：听写每词间隔改为 20 秒。"
 }
