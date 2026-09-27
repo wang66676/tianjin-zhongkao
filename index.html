@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.15';
+const APP_VER = '1.0.16';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -2015,10 +2015,11 @@ function dictListenHTML(){
   const words = todayWords();
   return `
   <div class="card"><h3>🎧 今日听写（${words.length} 词）</h3>
-    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后朗读<b>中文 + 词性，共 3 遍</b>；<b>每一遍读完后停 1 秒再读下一遍</b>；<b>每个单词总间隔 20 秒</b>，请对照序号写出英文单词。</div>
+    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后朗读<b>中文 + 词性，共 3 遍</b>；<b>每一遍读完后停 1 秒再读下一遍</b>；<b>每个单词总间隔 20 秒</b>；点「⏭ 下一个」可立即跳到下一个单词。请对照序号写出英文单词。</div>
     <div id="listenInfo" style="margin-top:8px;font-weight:600;color:var(--primary)">准备就绪，点击下方「开始听写」</div>
     <div class="flex" style="gap:8px;margin-top:10px">
       <button class="btn block" data-act="listenStart">▶ 开始听写</button>
+      <button class="btn block warn" data-act="listenNext">⏭ 下一个</button>
       <button class="btn block ghost" data-act="listenStop">⏸ 停止</button>
     </div>
   </div>
@@ -2036,60 +2037,77 @@ function dictListenHTML(){
 let listenTimer = null;
 let listenTimeouts = [];
 let listenRunId = 0;
+let listenNextFn = null;
 function dictListenStopDo(){
   if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
   listenTimeouts.forEach(function(t){ clearTimeout(t); });
   listenTimeouts = [];
   listenRunId++;
+  listenNextFn = null;
   const el = document.getElementById('listenInfo');
   if(el) el.textContent = '已停止。可点「开始听写」重新开始。';
+}
+function dictListenNextDo(){
+  if(listenNextFn){ listenNextFn(); }
+  else { toast('请先点「开始听写」'); }
 }
 function dictListenStartDo(){
   const words = todayWords();
   if(!words.length){ toast('今日没有听写单词'); return; }
   dictListenStopDo();
   const runId = listenRunId;
-  let idx = 0, left = 20;
+  let idx = 0, left = 20, wordToken = 0, wordStartAt = Date.now();
   const info = function(){
+    left = Math.max(0, 20 - Math.floor((Date.now() - wordStartAt) / 1000));
     const el = document.getElementById('listenInfo');
-    if(el) el.textContent = '正在听写：第 ' + (idx+1) + ' / ' + words.length + ' 题 · 剩余 ' + left + ' 秒（中文+词性读3遍）';
+    if(el) el.textContent = '正在听写：第 ' + (idx+1) + ' / ' + words.length + ' 题 · 剩余 ' + left + ' 秒';
     const rows = document.querySelectorAll('#listenList .word-row');
     rows.forEach(function(r,i){ r.style.background = (i===idx) ? '#dbeafe' : ''; });
   };
-  const later = function(ms, fn){
-    const t = setTimeout(function(){ if(listenRunId === runId) fn(); }, ms);
-    listenTimeouts.push(t);
+  const finish = function(){
+    if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
+    listenNextFn = null;
+    const el = document.getElementById('listenInfo');
+    if(el) el.textContent = '听写结束！请点下方「手动逐词核对」批改。';
   };
   const readOne = function(){
+    wordToken++;
+    const myToken = wordToken;
     const w = words[idx];
+    wordStartAt = Date.now();
     left = 20;
     const cnPos = (w.cn || '') + '，' + (w.pos || '');
-    // 题号读完 → 停 1 秒 → 读第 1 遍；之后每遍读完后停 1 秒再读下一遍（共 3 遍）
     const rep = function(n){
-      if(listenRunId !== runId || n > 3) return;
-      later(1000, function(){
+      if(listenRunId !== runId || myToken !== wordToken || n > 3) return;
+      const t = setTimeout(function(){
+        if(listenRunId !== runId || myToken !== wordToken) return;
         speak(cnPos, function(){
-          if(listenRunId !== runId) return;
+          if(listenRunId !== runId || myToken !== wordToken) return;
           rep(n + 1);
         });
-      });
+      }, 1000);
+      listenTimeouts.push(t);
     };
-    speak('第' + (idx+1) + '题', function(){ rep(1); });
+    speak('第' + (idx+1) + '题', function(){
+      if(listenRunId !== runId || myToken !== wordToken) return;
+      rep(1);
+    });
     info();
   };
+  const advance = function(){
+    if(listenRunId !== runId) return;
+    listenTimeouts.forEach(function(t){ clearTimeout(t); });
+    listenTimeouts = [];
+    wordToken++;
+    idx++;
+    if(idx >= words.length){ finish(); return; }
+    readOne();
+  };
+  listenNextFn = advance;
   readOne();
   listenTimer = setInterval(function(){
-    left--;
-    if(left <= 0){
-      idx++;
-      if(idx >= words.length){
-        clearInterval(listenTimer); listenTimer = null;
-        const el = document.getElementById('listenInfo');
-        if(el) el.textContent = '听写结束！请点下方「手动逐词核对」批改。';
-        return;
-      }
-      readOne();
-    } else { info(); }
+    info();
+    if(Date.now() - wordStartAt >= 20000){ advance(); }
   }, 1000);
 }
 function dictGradeHTML(){
@@ -2389,6 +2407,7 @@ document.addEventListener('click', e=>{
     case 'dictGradeGo': dictListenStopDo(); navTo('dictGrade', '听写 · 手动核对', {grades:{}}); break;
     case 'listenStart': dictListenStartDo(); break;
     case 'listenStop': dictListenStopDo(); break;
+    case 'listenNext': dictListenNextDo(); break;
     case 'dictCamPick': { const f = document.getElementById('dictFile'); if(f) f.click(); break; }
     case 'dictFilePick': { const f = document.getElementById('dictFileTxt'); if(f) f.click(); break; }
     case 'gradeWord': {
