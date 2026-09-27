@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.16';
+const APP_VER = '1.0.17';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1888,7 +1888,13 @@ function speak(word, onEnd){
   store.set('dict', dict);
   render();
 }
-function todayWords(){
+function todayState(){
+  const dstr = todayStr();
+  if(!dict.today || dict.today.date !== dstr){ dict.today = { date: dstr, batches: [], cur: 0 }; }
+  return dict.today;
+}
+function saveTodayState(){ store.set('dict', dict); }
+function buildBatchWords(){
   const bank = currentBank();
   let n = parseInt(dict.plan.daily, 10); if(!(n>0)) n = 10; if(n>100) n = 100;
   if(!bank.length) return [];
@@ -1903,11 +1909,84 @@ function todayWords(){
   parts.push(...undone);
   const used = new Set(parts.map(w=>w.en));
   parts.push(...other.filter(w=>!used.has(w.en)));
-  let idx = 0;
-  while(parts.length < n){ parts.push(bank[idx % bank.length]); idx++; }
-  return parts.slice(0, n);
+  let i = 0;
+  while(parts.length < n && bank.length){ parts.push(bank[i % bank.length]); i++; }
+  return parts.slice(0, n).map(w=>w.en);
 }
-function isHard(en){
+function currentBatch(){
+  const t = todayState();
+  if(!t.batches.length){ t.batches.push({ words: buildBatchWords(), results: {} }); t.cur = 0; saveTodayState(); }
+  return t.batches[t.cur];
+}
+function todayWords(){ return currentBatch().words.map(en=>wordInfo(en)); }
+function newTodayBatchDo(){
+  const t = todayState();
+  const b = { words: buildBatchWords(), results: {} };
+  t.batches.push(b); t.cur = t.batches.length - 1;
+  saveTodayState();
+  toast('已生成新一批：' + b.words.length + ' 词，可继续今日听写');
+  render();
+}
+function markWordResult(en, result){
+  const b = currentBatch();
+  const prev = b.results[en];
+  const r = dict.records[en] || {count:0, err:0, streak:0, last:''};
+  if(prev === undefined){
+    r.count++; r.last = todayStr();
+    if(result === 'wrong'){ r.err++; r.streak = 0; } else { r.streak++; }
+  } else if(prev !== result){
+    if(result === 'wrong'){ r.err++; r.streak = 0; }
+    else { r.err = Math.max(0, r.err - 1); r.streak++; }
+  }
+  b.results[en] = result;
+  dict.records[en] = r;
+  refreshTodayDays();
+  saveTodayState();
+  refreshTodayResultsUI();
+}
+function refreshTodayDays(){
+  const t = todayState();
+  const words = [], wrong = [];
+  t.batches.forEach(function(b){
+    b.words.forEach(function(en){ if(words.indexOf(en) < 0) words.push(en); });
+    Object.keys(b.results).forEach(function(en){ if(b.results[en] === 'wrong' && wrong.indexOf(en) < 0) wrong.push(en); });
+  });
+  dict.days = dict.days || {};
+  dict.days[todayStr()] = { words: words, wrong: wrong };
+}
+function refreshTodayResultsUI(){
+  const el = document.getElementById('todayResultsWrap');
+  if(el){ el.innerHTML = todayResultsHTML(); }
+}
+function resultBadge(en, b){
+  const v = b.results[en];
+  if(v === 'ok') return '<span class="badge green">✓ 对</span>';
+  if(v === 'wrong') return '<span class="badge red">✗ 错</span>';
+  return '<span class="badge amber">－ 未判</span>';
+}
+function todayResultsHTML(){
+  const t = todayState();
+  const total = t.batches.reduce(function(a,b){ return a + b.words.length; }, 0);
+  const judged = t.batches.reduce(function(a,b){ return a + Object.keys(b.results).length; }, 0);
+  let html = '<div class="card"><h3>📋 今日已完成（' + judged + ' / ' + total + '）</h3>';
+  if(!t.batches.length || !judged){
+    html += '<div class="muted">还没有判定结果。听写完成后点「✍️ 手动逐词核对」即可生成结果。</div></div>';
+    return html;
+  }
+  t.batches.forEach(function(b, bi){
+    const judgedB = Object.keys(b.results).length;
+    html += '<div class="muted" style="margin-top:6px">第 ' + (bi+1) + ' 批（' + judgedB + '/' + b.words.length + ' 已判定）</div>';
+    b.words.forEach(function(en, i){
+      const w = wordInfo(en);
+      html += '<div class="word-row"><span class="badge blue" style="min-width:30px;text-align:center">' + (i+1) + '</span>' +
+        '<span style="flex:1"><span class="en">' + esc(en) + ' <span class="pos">' + esc(w.pos || '') + '</span></span><span class="cn">' + esc(w.cn || '') + '</span></span>' +
+        resultBadge(en, b) +
+        '<span class="play" data-act="speak" data-word="' + esc(en) + '">🔊</span></div>';
+    });
+  });
+  html += '</div>';
+  return html;
+}function isHard(en){
   const r = dict.records[en]; return !!(r && (r.err/r.count>=0.4 || (r.err>0 && r.streak===0)));
 }
 const QTR = '2026年第3季度（Q3）';
@@ -2015,12 +2094,14 @@ function dictListenHTML(){
   const words = todayWords();
   return `
   <div class="card"><h3>🎧 今日听写（${words.length} 词）</h3>
-    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后朗读<b>中文 + 词性，共 3 遍</b>；<b>每一遍读完后停 1 秒再读下一遍</b>；<b>每个单词总间隔 20 秒</b>；点「⏭ 下一个」可立即跳到下一个单词。请对照序号写出英文单词。</div>
+    <div class="muted">当前批次：第 ${todayState().cur + 1} 批 / 共 ${todayState().batches.length} 批</div>
+    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后朗读<b>中文 + 词性，共 3 遍</b>；<b>每一遍读完后停 1 秒再读下一遍</b>；<b>每个单词总间隔 20 秒</b>；可点「⏮ 上一个 / ⏭ 下一个」切换（点“下一个”会把当前单词记为错）。</div>
     <div id="listenInfo" style="margin-top:8px;font-weight:600;color:var(--primary)">准备就绪，点击下方「开始听写」</div>
-    <div class="flex" style="gap:8px;margin-top:10px">
-      <button class="btn block" data-act="listenStart">▶ 开始听写</button>
-      <button class="btn block warn" data-act="listenNext">⏭ 下一个</button>
-      <button class="btn block ghost" data-act="listenStop">⏸ 停止</button>
+    <div class="flex" style="gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn" style="flex:1" data-act="listenStart">▶ 开始听写</button>
+      <button class="btn ghost" style="flex:1" data-act="listenPrev">⏮ 上一个</button>
+      <button class="btn warn" style="flex:1" data-act="listenNext">⏭ 下一个</button>
+      <button class="btn ghost" style="flex:1" data-act="listenStop">⏸ 停止</button>
     </div>
   </div>
   <div class="card"><h3>听写清单（每词保留 🔊 听力 / 📖 牛津）</h3>
@@ -2031,24 +2112,30 @@ function dictListenHTML(){
       <a class="ox" href="https://www.oxfordlearnersdictionaries.com/definition/english/${encodeURIComponent(w.en)}" target="_blank" rel="noopener">📖 牛津</a></div>`).join('')}
     </div>
   </div>
-  <button class="btn block" data-act="nav" data-page="dictTask" data-title="听写批改">✍️ 写完了 · 手动逐词核对</button>
+  <div id="todayResultsWrap">${todayResultsHTML()}</div>
+  <button class="btn block ghost" data-act="newBatch">➕ 再生成一批（继续今日听写）</button>
+  <button class="btn block" data-act="nav" data-page="dictTask" data-title="听写批改" style="margin-top:8px">✍️ 写完了 · 手动逐词核对</button>
   `;
 }
 let listenTimer = null;
 let listenTimeouts = [];
 let listenRunId = 0;
-let listenNextFn = null;
+let listenCtl = null;
 function dictListenStopDo(){
   if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
   listenTimeouts.forEach(function(t){ clearTimeout(t); });
   listenTimeouts = [];
   listenRunId++;
-  listenNextFn = null;
+  listenCtl = null;
   const el = document.getElementById('listenInfo');
   if(el) el.textContent = '已停止。可点「开始听写」重新开始。';
 }
+function dictListenPrevDo(){
+  if(listenCtl && listenCtl.prev){ listenCtl.prev(); }
+  else { toast('请先点「开始听写」'); }
+}
 function dictListenNextDo(){
-  if(listenNextFn){ listenNextFn(); }
+  if(listenCtl && listenCtl.next){ listenCtl.next(); }
   else { toast('请先点「开始听写」'); }
 }
 function dictListenStartDo(){
@@ -2056,9 +2143,9 @@ function dictListenStartDo(){
   if(!words.length){ toast('今日没有听写单词'); return; }
   dictListenStopDo();
   const runId = listenRunId;
-  let idx = 0, left = 20, wordToken = 0, wordStartAt = Date.now();
+  let idx = 0, wordToken = 0, wordStartAt = Date.now();
   const info = function(){
-    left = Math.max(0, 20 - Math.floor((Date.now() - wordStartAt) / 1000));
+    const left = Math.max(0, 20 - Math.floor((Date.now() - wordStartAt) / 1000));
     const el = document.getElementById('listenInfo');
     if(el) el.textContent = '正在听写：第 ' + (idx+1) + ' / ' + words.length + ' 题 · 剩余 ' + left + ' 秒';
     const rows = document.querySelectorAll('#listenList .word-row');
@@ -2066,7 +2153,7 @@ function dictListenStartDo(){
   };
   const finish = function(){
     if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
-    listenNextFn = null;
+    listenCtl = null;
     const el = document.getElementById('listenInfo');
     if(el) el.textContent = '听写结束！请点下方「手动逐词核对」批改。';
   };
@@ -2075,7 +2162,6 @@ function dictListenStartDo(){
     const myToken = wordToken;
     const w = words[idx];
     wordStartAt = Date.now();
-    left = 20;
     const cnPos = (w.cn || '') + '，' + (w.pos || '');
     const rep = function(n){
       if(listenRunId !== runId || myToken !== wordToken || n > 3) return;
@@ -2094,20 +2180,28 @@ function dictListenStartDo(){
     });
     info();
   };
-  const advance = function(){
+  const goTo = function(target){
     if(listenRunId !== runId) return;
     listenTimeouts.forEach(function(t){ clearTimeout(t); });
     listenTimeouts = [];
     wordToken++;
-    idx++;
-    if(idx >= words.length){ finish(); return; }
+    idx = Math.max(0, Math.min(words.length - 1, target));
     readOne();
   };
-  listenNextFn = advance;
+  const advance = function(skipWrong){
+    const cur = words[idx];
+    if(skipWrong && cur){ markWordResult(cur.en, 'wrong'); }
+    if(idx + 1 >= words.length){ finish(); return; }
+    goTo(idx + 1);
+  };
+  listenCtl = {
+    prev: function(){ if(idx > 0){ goTo(idx - 1); } else { toast('已经是第一题'); } },
+    next: function(){ advance(true); }
+  };
   readOne();
   listenTimer = setInterval(function(){
     info();
-    if(Date.now() - wordStartAt >= 20000){ advance(); }
+    if(Date.now() - wordStartAt >= 20000){ advance(false); }
   }, 1000);
 }
 function dictGradeHTML(){
@@ -2408,6 +2502,8 @@ document.addEventListener('click', e=>{
     case 'listenStart': dictListenStartDo(); break;
     case 'listenStop': dictListenStopDo(); break;
     case 'listenNext': dictListenNextDo(); break;
+    case 'listenPrev': dictListenPrevDo(); break;
+    case 'newBatch': newTodayBatchDo(); break;
     case 'dictCamPick': { const f = document.getElementById('dictFile'); if(f) f.click(); break; }
     case 'dictFilePick': { const f = document.getElementById('dictFileTxt'); if(f) f.click(); break; }
     case 'gradeWord': {
@@ -2421,17 +2517,12 @@ document.addEventListener('click', e=>{
     }
     case 'dictSave': {
       const words = todayWords(); const g = state.params.grades||{};
-      words.forEach((w,i)=>{
-        const r = dict.records[w.en] || {count:0, err:0, streak:0, last:''};
-        r.count++; r.last = todayStr();
-        if(g[i]==='0'){ r.err++; r.streak = 0; } else { r.streak++; }
-        dict.records[w.en] = r;
-      });
-      dict.done[todayStr()] = words.length;
-      dict.days = dict.days || {};
-      dict.days[todayStr()] = { words: words.map(w=>w.en), wrong: words.filter((w,i)=> g[i]==='0').map(w=>w.en) };
+      words.forEach((w,i)=>{ markWordResult(w.en, g[i]==='0' ? 'wrong' : 'ok'); });
+      const t = todayState();
+      dict.done[todayStr()] = t.batches.reduce(function(a,b){ return a + b.words.length; }, 0);
+      refreshTodayDays();
       store.set('dict', dict);
-      toast('已存档：默写次数 / 错误次数已更新');
+      toast('已存档：听写次数 / 错误次数已更新');
       navTo('dictStats', '默写统计', {}); break;
     }
 
