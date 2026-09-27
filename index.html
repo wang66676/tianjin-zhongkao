@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.13';
+const APP_VER = '1.0.14';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1814,15 +1814,38 @@ function downloadWord(){
   toast('已生成并下载 Word 文档');
 }
 /* ========== 英语计划性默写 ========== */
-function speak(word){
-  // ① 安装版：原生安卓语音
+let __ttsSeq = 0;
+const __ttsCbs = {};
+window.__onTtsEnd = function(id){
+  const cb = __ttsCbs[id];
+  if(cb){ delete __ttsCbs[id]; try{ cb(); }catch(e){} }
+};
+function estimateSpeechMs(t){
+  const txt = String(t||'');
+  const zh = (txt.match(/[\u4e00-\u9fff]/g) || []).length;
+  const other = Math.max(0, txt.length - zh);
+  return Math.max(700, zh * 260 + other * 90 + 300);
+}
+function speak(word, onEnd){
+  const txt = String(word == null ? '' : word);
+  // ① 安装版：原生安卓语音（带读完回调）
   try{
-    if(window.AndroidTTS && typeof window.AndroidTTS.speak === 'function'){ window.AndroidTTS.speak(String(word)); return; }
+    if(window.AndroidTTS && typeof window.AndroidTTS.speak === 'function'){
+      const id = 'tts' + (++__ttsSeq);
+      if(onEnd) __ttsCbs[id] = onEnd;
+      try{ window.AndroidTTS.speak(txt, id); return; }
+      catch(e1){
+        try{
+          window.AndroidTTS.speak(txt);
+          if(onEnd){ setTimeout(onEnd, estimateSpeechMs(txt)); }
+          return;
+        }catch(e2){}
+      }
+    }
   }catch(e){}
   // ② 浏览器语音合成（自动识别中文/英文）
   try{
     if(window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined'){
-      const txt = String(word);
       const zh = /[\u4e00-\u9fff]/.test(txt);
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(txt);
@@ -1831,13 +1854,13 @@ function speak(word){
       const vs = window.speechSynthesis.getVoices();
       const v = zh ? (vs.find(x=>/^zh/i.test(x.lang)) || null) : (vs.find(x=>/^en(-|_)/.test(x.lang) && /GB|UK/i.test(x.lang)) || vs.find(x=>/^en/.test(x.lang)));
       if(v) u.voice = v;
+      if(onEnd){ u.onend = function(){ try{ onEnd(); }catch(e){} }; u.onerror = function(){ try{ onEnd(); }catch(e){} }; }
       window.speechSynthesis.speak(u);
       return;
     }
   }catch(e){}
   // ③ 在线发音（需联网）
   try{
-    const txt = String(word);
     const zh = /[\u4e00-\u9fff]/.test(txt);
     const enc = encodeURIComponent(txt);
     const urls = zh ? [
@@ -1848,16 +1871,16 @@ function speak(word){
       'https://fanyi.baidu.com/gettts?lan=en&text=' + enc + '&spd=3&source=web'
     ];
     let idx = 0;
-    const tryPlay = ()=>{
-      if(idx >= urls.length){ toast('当前环境无法发声：请联网后重试'); return; }
+    const tryPlay = function(){
+      if(idx >= urls.length){ toast('当前环境无法发声：请联网后重试'); if(onEnd) onEnd(); return; }
       const a = new Audio(urls[idx++]);
-      a.onerror = ()=>{ setTimeout(tryPlay, 300); };
-      a.play().catch(()=>{ setTimeout(tryPlay, 300); });
+      a.onended = function(){ if(onEnd) onEnd(); };
+      a.onerror = function(){ setTimeout(tryPlay, 300); };
+      a.play().catch(function(){ setTimeout(tryPlay, 300); });
     };
     tryPlay();
-  }catch(e){ toast('当前环境无法发声：请联网后重试'); }
-}
-function planDailyInput(v){
+  }catch(e){ toast('当前环境无法发声：请联网后重试'); if(onEnd) onEnd(); }
+}function planDailyInput(v){
   let n = parseInt(v, 10);
   if(!(n>0)) n = 10;
   if(n>100) n = 100;
@@ -1992,7 +2015,7 @@ function dictListenHTML(){
   const words = todayWords();
   return `
   <div class="card"><h3>🎧 今日听写（${words.length} 词）</h3>
-    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后<b>中文 + 词性连续朗读 3 遍（每遍间隔 1 秒）</b>；<b>每个单词总间隔 15 秒</b>，请对照序号写出英文单词。</div>
+    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后朗读<b>中文 + 词性，共 3 遍</b>；<b>每一遍读完后停 1 秒再读下一遍</b>；<b>每个单词总间隔 15 秒</b>，请对照序号写出英文单词。</div>
     <div id="listenInfo" style="margin-top:8px;font-weight:600;color:var(--primary)">准备就绪，点击下方「开始听写」</div>
     <div class="flex" style="gap:8px;margin-top:10px">
       <button class="btn block" data-act="listenStart">▶ 开始听写</button>
@@ -2033,18 +2056,25 @@ function dictListenStartDo(){
     const rows = document.querySelectorAll('#listenList .word-row');
     rows.forEach(function(r,i){ r.style.background = (i===idx) ? '#dbeafe' : ''; });
   };
-  const later = function(delay, text){
-    const t = setTimeout(function(){ if(listenRunId === runId){ speak(text); } }, delay);
+  const later = function(ms, fn){
+    const t = setTimeout(function(){ if(listenRunId === runId) fn(); }, ms);
     listenTimeouts.push(t);
   };
   const readOne = function(){
     const w = words[idx];
     left = 15;
     const cnPos = (w.cn || '') + '，' + (w.pos || '');
-    speak('第' + (idx+1) + '题');
-    later(1000, cnPos);
-    later(2000, cnPos);
-    later(3000, cnPos);
+    // 题号读完 → 停 1 秒 → 读第 1 遍；之后每遍读完后停 1 秒再读下一遍（共 3 遍）
+    const rep = function(n){
+      if(listenRunId !== runId || n > 3) return;
+      later(1000, function(){
+        speak(cnPos, function(){
+          if(listenRunId !== runId) return;
+          rep(n + 1);
+        });
+      });
+    };
+    speak('第' + (idx+1) + '题', function(){ rep(1); });
     info();
   };
   readOne();
