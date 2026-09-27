@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.12';
+const APP_VER = '1.0.13';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1992,7 +1992,7 @@ function dictListenHTML(){
   const words = todayWords();
   return `
   <div class="card"><h3>🎧 今日听写（${words.length} 词）</h3>
-    <div class="muted">点击「开始听写」后，系统会依次朗读“题号 + 中文 + 词性”，<b>每个单词间隔 15 秒</b>，请对照序号写出英文单词。</div>
+    <div class="muted">点击「开始听写」后：先读<b>题号</b>，随后<b>中文 + 词性连续朗读 3 遍（每遍间隔 1 秒）</b>；<b>每个单词总间隔 15 秒</b>，请对照序号写出英文单词。</div>
     <div id="listenInfo" style="margin-top:8px;font-weight:600;color:var(--primary)">准备就绪，点击下方「开始听写」</div>
     <div class="flex" style="gap:8px;margin-top:10px">
       <button class="btn block" data-act="listenStart">▶ 开始听写</button>
@@ -2011,26 +2011,40 @@ function dictListenHTML(){
   `;
 }
 let listenTimer = null;
+let listenTimeouts = [];
+let listenRunId = 0;
 function dictListenStopDo(){
   if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
+  listenTimeouts.forEach(function(t){ clearTimeout(t); });
+  listenTimeouts = [];
+  listenRunId++;
   const el = document.getElementById('listenInfo');
   if(el) el.textContent = '已停止。可点「开始听写」重新开始。';
 }
 function dictListenStartDo(){
   const words = todayWords();
   if(!words.length){ toast('今日没有听写单词'); return; }
-  if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
+  dictListenStopDo();
+  const runId = listenRunId;
   let idx = 0, left = 15;
   const info = function(){
     const el = document.getElementById('listenInfo');
-    if(el) el.textContent = '正在听写：第 ' + (idx+1) + ' / ' + words.length + ' 题 · 剩余 ' + left + ' 秒';
+    if(el) el.textContent = '正在听写：第 ' + (idx+1) + ' / ' + words.length + ' 题 · 剩余 ' + left + ' 秒（中文+词性读3遍）';
     const rows = document.querySelectorAll('#listenList .word-row');
     rows.forEach(function(r,i){ r.style.background = (i===idx) ? '#dbeafe' : ''; });
+  };
+  const later = function(delay, text){
+    const t = setTimeout(function(){ if(listenRunId === runId){ speak(text); } }, delay);
+    listenTimeouts.push(t);
   };
   const readOne = function(){
     const w = words[idx];
     left = 15;
-    speak('第' + (idx+1) + '题，' + w.cn + '，' + (w.pos || ''));
+    const cnPos = (w.cn || '') + '，' + (w.pos || '');
+    speak('第' + (idx+1) + '题');
+    later(1000, cnPos);
+    later(2000, cnPos);
+    later(3000, cnPos);
     info();
   };
   readOne();
@@ -2047,115 +2061,6 @@ function dictListenStartDo(){
       readOne();
     } else { info(); }
   }, 1000);
-}
-let pickedDictImg = null;
-function looksLikeText(s){ const sample = String(s||'').slice(0,4000); const letters = (sample.match(/[A-Za-z\u4e00-\u9fff]/g)||[]).length; const total = sample.length||1; return (letters/total) > 0.5; }
-function loadScript(src){ return new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=()=>rej(new Error('联网加载解析组件失败')); document.head.appendChild(sc); }); }
-async function extractPdfText(file){
-  if(!window.pdfjsLib){ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); }
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const data = await file.arrayBuffer();
-  const pdf = await window.pdfjsLib.getDocument({data:data}).promise;
-  const out = [];
-  for(let i=1;i<=pdf.numPages;i++){ const pg = await pdf.getPage(i); const tc = await pg.getTextContent(); out.push(tc.items.map(it=>it.str).join(' ')); }
-  return out.join('\n');
-}
-async function extractDocxText(file){
-  if(!window.mammoth){ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'); }
-  const data = await file.arrayBuffer();
-  const res = await window.mammoth.extractRawText({arrayBuffer:data});
-  return res.value || '';
-}
-async function handleDictFile(file){
-  const name = (file.name||'').toLowerCase();
-  const ext = name.split('.').pop();
-  const isImg = /^image\//.test(file.type) || ['jpg','jpeg','png','gif','bmp','webp'].includes(ext);
-  const isPdf = file.type==='application/pdf' || ext==='pdf';
-  const isDocx = ext==='docx';
-  if(isImg){
-    const url = URL.createObjectURL(file);
-    const box = document.getElementById('dictCamInner');
-    pickedDictImg = null;
-    if(box) box.innerHTML = '<img src="'+url+'" style="max-width:70%;border-radius:8px">';
-    const fr = new FileReader();
-    fr.onload = ()=>{
-      pickedDictImg = fr.result;
-      const ai = aiCfg();
-      if(ai && ai.key){
-        toast('🤖 已自动开始 AI 识别判对错…');
-        setTimeout(()=>{ dictAiGradeDo(); }, 500);
-      } else {
-        if(box){
-          const hint = document.createElement('div');
-          hint.style.cssText = 'margin-top:6px;color:#fcd34d;font-size:12px';
-          hint.textContent = '未填 AI Key，无法自动识别手写。请到「我的→AI设置」填 Key，或点下方“手动逐词核对”。';
-          box.appendChild(hint);
-        }
-      }
-    };
-    fr.readAsDataURL(file);
-    if(box){
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'margin-top:8px;text-align:center';
-      wrap.innerHTML = '<button class="btn sm ghost" data-act="dictRetake" style="margin:0 4px">📷 重新拍照</button>';
-      box.appendChild(wrap);
-    }
-    toast('图片已就绪，正在处理…');
-    return;
-  }
-  let text = '';
-  try{
-    if(isPdf){ toast('正在解析 PDF…'); text = await extractPdfText(file); }
-    else if(isDocx){ toast('正在解析 Word…'); text = await extractDocxText(file); }
-    else if(ext==='doc'){ toast('老版 .doc 无法直接读取：请在 Word 中“另存为 .txt / .docx / PDF”后再上传'); return; }
-    else { text = await file.text().catch(()=>''); }
-  }catch(e){ toast('解析失败：'+e.message+'（可把内容另存为 .txt 后上传）'); return; }
-  if(!text || !text.trim() || !looksLikeText(text)){ toast('未从文件中读到可批改的文字（扫描版 PDF 请转图片后拍照上传）'); return; }
-  autoGradeTxt(text);
-}
-async function dictAiGradeDo(){
-  if(!pickedDictImg){ toast('请先拍照或选择默写图片'); return; }
-  const ai = aiCfg();
-  if(!ai || !ai.key){ toast('AI 识别需先填 Key：我的 → AI 设置'); return; }
-  const words = todayWords().map(w=>w.en).join('、');
-  toast('🤖 AI 识别默写中，请稍候…');
-  try{
-    const res = await fetch(String(ai.base||'').replace(/\/$/,'') + '/chat/completions', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+ai.key},
-      body: JSON.stringify({model:ai.model||'deepseek-v4-flash', temperature:0.1, messages:[
-        {role:'system', content:'你是英语默写批改助手。请识别图片中学生手写的英文单词/短语，只输出识别到的内容，每行一个单词，不要序号、音标、释义或任何说明。'},
-        {role:'user', content:[{type:'text', text:'目标词：'+words+'. 请输出识别到的学生所写内容。'}, {type:'image_url', image_url:{url:pickedDictImg}}]}
-      ]})
-    });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data = await res.json();
-    const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
-    if(!text || !text.trim()) throw new Error('未识别到内容');
-    autoGradeTxt(text);
-  }catch(e){ toast('AI 识别失败：'+e.message); }
-}
-function dictRetakeDo(){
-  pickedDictImg = null;
-  const box = document.getElementById('dictCamInner');
-  const f = document.getElementById('dictFile');
-  if(f) f.value = '';
-  if(box) box.innerHTML = '<span style="font-size:28px">📄</span><p class="small" style="margin-top:6px">重新拍摄 / 选择默写图片…</p>';
-  if(f) f.click();
-}
-function autoGradeTxt(text){
-  const words = todayWords();
-  const mode = dict.plan.mode;
-  const norm = (s)=> String(s||'').toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9\u4e00-\u9fff]+/g,' ');
-  const hay = ' '+norm(text)+' ';
-  const grades = {};
-  words.forEach((w,i)=>{
-    const raw = (mode==='en2cn') ? w.cn : w.en;
-    const parts = String(raw).split(/[；;、，,，\/]/).map(s=>norm(s)).filter(Boolean);
-    const ok = parts.some(p=> p && hay.indexOf(p)>=0);
-    grades[i] = ok ? '1' : '0';
-  });
-  navTo('dictGrade','默写 · 文件自动批改',{grades:grades});
 }
 function dictGradeHTML(){
   const words = todayWords();
