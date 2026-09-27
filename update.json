@@ -1,30 +1,30 @@
 {
-  "note": "v1.0.12：默写改为听写（自动朗读题号+中文+词性，15秒/词），批改仅保留手动逐词核对。",
-  "version": "1.0.12",
+  "note": "v1.0.13：听写朗读优化（题号 → 中文+词性读3遍，每遍间隔1秒）。",
+  "version": "1.0.13",
   "versions": [
     {
-      "note": "v1.0.9：今日错词置顶、错词合集折叠、当日/整体准确率。",
-      "version": "1.0.9",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.9/index.html",
-      "date": "2026-09-17"
-    },
-    {
-      "note": "v1.0.10：去掉错题合集；单词档案改折叠；软件更新移到最后。",
-      "version": "1.0.10",
+      "date": "2026-09-17",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.10/index.html",
-      "date": "2026-09-17"
+      "version": "1.0.10",
+      "note": "v1.0.10：去掉错题合集；单词档案改折叠；软件更新移到最后。"
     },
     {
-      "note": "v1.0.11：易错词本/重点攻克改为折叠。",
-      "version": "1.0.11",
+      "date": "2026-09-17",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.11/index.html",
-      "date": "2026-09-17"
+      "version": "1.0.11",
+      "note": "v1.0.11：易错词本/重点攻克改为折叠。"
     },
     {
-      "note": "v1.0.12：默写升级为听写——进入听写页点“开始听写”，自动朗读“题号+中文+词性”，每词间隔 15 秒；保留 🔊 听力与 📖 牛津；批改仅保留手动逐词核对。",
-      "version": "1.0.12",
+      "date": "2026-09-27",
       "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.12/index.html",
-      "date": "2026-09-27"
+      "version": "1.0.12",
+      "note": "v1.0.12：默写升级为听写（题号+中文+词性，15秒/词），批改仅保留手动逐词核对。"
+    },
+    {
+      "date": "2026-09-27",
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.13/index.html",
+      "version": "1.0.13",
+      "note": "v1.0.13：听写朗读优化——读完题号后，中文+词性连续朗读3遍，每遍间隔1秒。"
     }
   ]
 }
