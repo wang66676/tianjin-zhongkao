@@ -1,30 +1,30 @@
 {
   "versions": [
     {
-      "version": "1.0.12",
-      "note": "v1.0.12：默写升级为听写（题号+中文+词性），批改仅保留手动逐词核对。",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.12/index.html",
-      "date": "2026-09-27"
-    },
-    {
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.13/index.html",
       "version": "1.0.13",
       "note": "v1.0.13：听写朗读优化（中文+词性读3遍）。",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.13/index.html",
       "date": "2026-09-27"
     },
     {
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.14/index.html",
       "version": "1.0.14",
       "note": "v1.0.14：听写改为“每遍读完后再停1秒”读下一遍（共3遍）。",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.14/index.html",
       "date": "2026-09-27"
     },
     {
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.15/index.html",
       "version": "1.0.15",
       "note": "v1.0.15：每个单词听写间隔由 15 秒改为 20 秒。",
-      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.15/index.html",
+      "date": "2026-09-27"
+    },
+    {
+      "url": "https://wang66676.github.io/tianjin-zhongkao/versions/1.0.16/index.html",
+      "version": "1.0.16",
+      "note": "v1.0.16：听写页新增「⏭ 下一个」按钮，可立即跳到下一词（倒计时重置为20秒）。",
       "date": "2026-09-27"
     }
   ],
-  "version": "1.0.15",
-  "note": "v1.0.15：听写每词间隔改为 20 秒。"
+  "version": "1.0.16",
+  "note": "v1.0.16：听写页新增「下一个」按钮（强制跳到下一词）。"
 }
