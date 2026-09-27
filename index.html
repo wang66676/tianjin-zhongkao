@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.11';
+const APP_VER = '1.0.12';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1357,6 +1357,7 @@ function pageHTML(){
     case 'export': return exportHTML();
     case 'dict': return dictHTML();
     case 'dictTask': return dictTaskHTML();
+    case 'dictListen': return dictListenHTML();
     case 'dictGrade': return dictGradeHTML();
     case 'dictStats': return dictStatsHTML();
     case 'account': return accountHTML();
@@ -1818,14 +1819,17 @@ function speak(word){
   try{
     if(window.AndroidTTS && typeof window.AndroidTTS.speak === 'function'){ window.AndroidTTS.speak(String(word)); return; }
   }catch(e){}
-  // ② 浏览器语音合成
+  // ② 浏览器语音合成（自动识别中文/英文）
   try{
     if(window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined'){
+      const txt = String(word);
+      const zh = /[\u4e00-\u9fff]/.test(txt);
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(String(word));
-      u.lang = 'en-GB'; u.rate = 0.85;
+      const u = new SpeechSynthesisUtterance(txt);
+      u.lang = zh ? 'zh-CN' : 'en-GB';
+      u.rate = zh ? 0.95 : 0.85;
       const vs = window.speechSynthesis.getVoices();
-      const v = vs.find(x=>/^en(-|_)/.test(x.lang) && /GB|UK/i.test(x.lang)) || vs.find(x=>/^en/.test(x.lang));
+      const v = zh ? (vs.find(x=>/^zh/i.test(x.lang)) || null) : (vs.find(x=>/^en(-|_)/.test(x.lang) && /GB|UK/i.test(x.lang)) || vs.find(x=>/^en/.test(x.lang)));
       if(v) u.voice = v;
       window.speechSynthesis.speak(u);
       return;
@@ -1833,8 +1837,13 @@ function speak(word){
   }catch(e){}
   // ③ 在线发音（需联网）
   try{
-    const enc = encodeURIComponent(String(word));
-    const urls = [
+    const txt = String(word);
+    const zh = /[\u4e00-\u9fff]/.test(txt);
+    const enc = encodeURIComponent(txt);
+    const urls = zh ? [
+      'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=zh-CN&q=' + enc,
+      'https://fanyi.baidu.com/gettts?lan=zh&text=' + enc + '&spd=3&source=web'
+    ] : [
       'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=' + enc,
       'https://fanyi.baidu.com/gettts?lan=en&text=' + enc + '&spd=3&source=web'
     ];
@@ -1938,7 +1947,7 @@ function dictHTML(){
       <div class="muted" style="margin-top:6px">本词表共 ${currentBank().length} 词 · 已默写 ${currentBank().filter(w=>dict.records[w.en]).length} 词 ｜ 默写数量=自拟词量；每日优先 ≤1/6 复习词（易错优先），其余为新出词，新词不足时用复习词补足</div>
     </div>
     <div class="field"><label>默写模式</label><div class="flex">${[['cn2en','汉译英'],['en2cn','英译汉'],['listen','听写'],['spell','拼写']].map(m=>`<span class="chip ${dict.plan.mode===m[0]?'on':''}" data-act="planMode" data-id="${m[0]}">${m[1]}</span>`).join('')}</div></div>
-    <button class="btn block" data-act="nav" data-page="dictTask" data-title="今日默写">✍️ 开始今日默写（${todayWords().length} 词）</button>
+    <button class="btn block" data-act="nav" data-page="dictListen" data-title="今日听写">🎧 开始今日听写（${todayWords().length} 词）</button>
   </div>
   <div class="card"><h3>📥 自定义导入词表（覆盖天津官方全词表）</h3>
     <div class="muted" style="margin-bottom:6px">可粘贴天津中考官方词汇表 / 教材全词表，每行一个：<b>单词,词性,中文</b>（例：ability,n.,能力）</div>
@@ -1963,28 +1972,81 @@ function dictTaskHTML(){
   const words = todayWords();
   const mode = dict.plan.mode;
   return `
-  <div class="card"><h3>📋 今日默写任务（${words.length} 词）</h3>
-    <div class="muted">新词 ${words.filter(w=>!dict.records[w.en]).length} · 复习 ${words.filter(w=>dict.records[w.en]).length} ｜ 模式：${mode==='cn2en'?'汉译英':mode==='en2cn'?'英译汉':'听写/拼写'} ｜ 数量=计划每日 ${dict.plan.daily} 词</div>
+  <div class="card"><h3>📋 今日听写清单（${words.length} 词）</h3>
+    <div class="muted">新词 ${words.filter(w=>!dict.records[w.en]).length} · 复习 ${words.filter(w=>dict.records[w.en]).length} ｜ 数量=计划每日 ${dict.plan.daily} 词</div>
   </div>
-  <div class="card"><h3>✍️ 默写要求</h3>
-    ${words.map((w,i)=>`<div class="flex" style="padding:7px 2px;border-bottom:1px dashed var(--line)"><span class="badge blue" style="width:26px;text-align:center">${i+1}</span>
-      <span style="flex:1">${mode==='cn2en'?w.cn:(mode==='en2cn'?w.en:'🔊 '+w.en)} <span class="pos">${w.pos}</span></span>
-      <span class="play" data-act="speak" data-word="${w.en}" title="试听发音">🔊</span>
-      <a class="ox" href="https://www.oxfordlearnersdictionaries.com/definition/english/${w.en}" target="_blank" rel="noopener">📖 牛津</a></div>`).join('')}
+  <div class="card"><h3>🎧 听写内容（中文 + 词性）</h3>
+    ${words.map((w,i)=>`<div class="word-row"><span class="badge blue" style="min-width:30px;text-align:center">${i+1}</span>
+      <span style="flex:1"><span class="en" style="font-size:14px">${esc(w.cn)} <span class="pos">${esc(w.pos||'')}</span></span></span>
+      <span class="play" data-act="speak" data-word="${esc(w.en)}" title="听力（试听英文）">🔊</span>
+      <a class="ox" href="https://www.oxfordlearnersdictionaries.com/definition/english/${encodeURIComponent(w.en)}" target="_blank" rel="noopener">📖 牛津</a></div>`).join('')}
   </div>
-  <div class="card"><h3>📤 批改方式（先纸笔默写，再任选一种）</h3>
-    <div class="flex" style="gap:8px">
-      <button class="btn block ghost" data-act="dictCamPick">📷 拍照上传（图片）</button>
-      <button class="btn block ghost" data-act="dictFilePick">📄 上传文件（任意格式）</button>
-    </div>
-    <div class="camera" id="dictCam" style="min-height:130px;margin-top:10px"><div class="frame"></div><div id="dictCamInner"><span style="font-size:28px">📄</span><p class="small" style="margin-top:6px">选择“拍照上传”或“上传文件”后在此预览 / 批改</p></div>
-      <input type="file" id="dictFile" accept="image/*" style="display:none">
-      <input type="file" id="dictFileTxt" style="display:none">
-    </div>
-    <div class="muted" style="margin-top:8px">支持任意格式：图片 → 预览后逐词核对；txt / Word(.docx) / PDF → 自动读取文字并判对错（每行一个单词即可，中文提示行自动忽略）。老版 .doc 建议先在 Word 里“另存为 .txt”。Word/PDF 解析需联网加载组件。</div>
+  <div class="card"><h3>✍️ 批改方式</h3>
+    <div class="muted">只支持<b>手动逐词核对</b>：对照你写的单词，逐条点“对 / 错”，错词会自动进入“易错词本”并更新统计。</div>
   </div>
-  <button class="btn block" data-act="dictGradeGo">✍️ 不拍照 / 不传文件：手动逐词核对</button>
+  <button class="btn block" data-act="dictGradeGo">✍️ 我写完了 · 手动逐词核对</button>
+  <button class="btn block ghost" data-act="nav" data-page="dictListen" data-title="今日听写" style="margin-top:8px">🎧 返回听写页</button>
   `;
+}
+function dictListenHTML(){
+  const words = todayWords();
+  return `
+  <div class="card"><h3>🎧 今日听写（${words.length} 词）</h3>
+    <div class="muted">点击「开始听写」后，系统会依次朗读“题号 + 中文 + 词性”，<b>每个单词间隔 15 秒</b>，请对照序号写出英文单词。</div>
+    <div id="listenInfo" style="margin-top:8px;font-weight:600;color:var(--primary)">准备就绪，点击下方「开始听写」</div>
+    <div class="flex" style="gap:8px;margin-top:10px">
+      <button class="btn block" data-act="listenStart">▶ 开始听写</button>
+      <button class="btn block ghost" data-act="listenStop">⏸ 停止</button>
+    </div>
+  </div>
+  <div class="card"><h3>听写清单（每词保留 🔊 听力 / 📖 牛津）</h3>
+    <div id="listenList">
+    ${words.map((w,i)=>`<div class="word-row"><span class="badge blue" style="min-width:30px;text-align:center">${i+1}</span>
+      <span style="flex:1"><span class="en" style="font-size:14px">${esc(w.cn)} <span class="pos">${esc(w.pos||'')}</span></span></span>
+      <span class="play" data-act="speak" data-word="${esc(w.en)}" title="听力（试听英文）">🔊</span>
+      <a class="ox" href="https://www.oxfordlearnersdictionaries.com/definition/english/${encodeURIComponent(w.en)}" target="_blank" rel="noopener">📖 牛津</a></div>`).join('')}
+    </div>
+  </div>
+  <button class="btn block" data-act="nav" data-page="dictTask" data-title="听写批改">✍️ 写完了 · 手动逐词核对</button>
+  `;
+}
+let listenTimer = null;
+function dictListenStopDo(){
+  if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
+  const el = document.getElementById('listenInfo');
+  if(el) el.textContent = '已停止。可点「开始听写」重新开始。';
+}
+function dictListenStartDo(){
+  const words = todayWords();
+  if(!words.length){ toast('今日没有听写单词'); return; }
+  if(listenTimer){ clearInterval(listenTimer); listenTimer = null; }
+  let idx = 0, left = 15;
+  const info = function(){
+    const el = document.getElementById('listenInfo');
+    if(el) el.textContent = '正在听写：第 ' + (idx+1) + ' / ' + words.length + ' 题 · 剩余 ' + left + ' 秒';
+    const rows = document.querySelectorAll('#listenList .word-row');
+    rows.forEach(function(r,i){ r.style.background = (i===idx) ? '#dbeafe' : ''; });
+  };
+  const readOne = function(){
+    const w = words[idx];
+    left = 15;
+    speak('第' + (idx+1) + '题，' + w.cn + '，' + (w.pos || ''));
+    info();
+  };
+  readOne();
+  listenTimer = setInterval(function(){
+    left--;
+    if(left <= 0){
+      idx++;
+      if(idx >= words.length){
+        clearInterval(listenTimer); listenTimer = null;
+        const el = document.getElementById('listenInfo');
+        if(el) el.textContent = '听写结束！请点下方「手动逐词核对」批改。';
+        return;
+      }
+      readOne();
+    } else { info(); }
+  }, 1000);
 }
 let pickedDictImg = null;
 function looksLikeText(s){ const sample = String(s||'').slice(0,4000); const letters = (sample.match(/[A-Za-z\u4e00-\u9fff]/g)||[]).length; const total = sample.length||1; return (letters/total) > 0.5; }
@@ -2147,7 +2209,7 @@ function dictStatsHTML(){
       <span class="badge ${isHard(x.en)?'red':'green'}">${isHard(x.en)?'攻克':'正常'}</span></div>`).join('') : '<div class="muted">暂无记录，先去完成一次默写</div>'}
   </div>` : ''}
   <div class="flex" style="gap:8px">
-    <button class="btn block" data-act="nav" data-page="dictTask" data-title="今日默写">✍️ 重新默写</button>
+    <button class="btn block" data-act="nav" data-page="dictListen" data-title="今日听写">🎧 重新听写</button>
     <button class="btn block ghost" data-act="nav" data-page="dict" data-title="英语计划性默写">← 返回</button>
   </div>
   `;
@@ -2287,6 +2349,7 @@ document.addEventListener('click', e=>{
       render(); break;
     }
     case 'nav': {
+      dictListenStopDo();
       const p = {};
       ['sub','col','li','ki','demo','title'].forEach(k=>{ if(el.hasAttribute('data-'+k)) p[k]=el.getAttribute('data-'+k); });
       const page = el.getAttribute('data-page');
@@ -2388,7 +2451,9 @@ document.addEventListener('click', e=>{
     /* 默写 */
     case 'planDaily': dict.plan.daily = +id; store.set('dict', dict); render(); break;
     case 'planMode': dict.plan.mode = id; store.set('dict', dict); render(); break;
-    case 'dictGradeGo': navTo('dictGrade', '默写 · 核对批改', {grades:{}}); break;
+    case 'dictGradeGo': dictListenStopDo(); navTo('dictGrade', '听写 · 手动核对', {grades:{}}); break;
+    case 'listenStart': dictListenStartDo(); break;
+    case 'listenStop': dictListenStopDo(); break;
     case 'dictCamPick': { const f = document.getElementById('dictFile'); if(f) f.click(); break; }
     case 'dictFilePick': { const f = document.getElementById('dictFileTxt'); if(f) f.click(); break; }
     case 'gradeWord': {
