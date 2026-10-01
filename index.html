@@ -128,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 <script>
 'use strict';
 /* ===== 在线更新：版本号 + 自更新应用 ===== */
-const APP_VER = '1.0.17';
+const APP_VER = '1.0.18';
 (function(){
   try{
     const verOf = function(h){ var m = /APP_VER = '([^']+)'/.exec(h); return m ? m[1] : ''; };
@@ -1894,24 +1894,66 @@ function todayState(){
   return dict.today;
 }
 function saveTodayState(){ store.set('dict', dict); }
+function daysAgoISO(n){
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function lastUsedMap(){
+  const map = {};
+  (dict.batchHist || []).forEach(function(h){
+    (h.words || []).forEach(function(en){ if(!map[en] || h.date > map[en]) map[en] = h.date; });
+  });
+  Object.keys(dict.records || {}).forEach(function(en){
+    const d = (dict.records[en] || {}).last;
+    if(d && (!map[en] || d > map[en])) map[en] = d;
+  });
+  return map;
+}
 function buildBatchWords(){
   const bank = currentBank();
   let n = parseInt(dict.plan.daily, 10); if(!(n>0)) n = 10; if(n>100) n = 100;
   if(!bank.length) return [];
-  const recs = dict.records;
-  const done = bank.filter(w=>recs[w.en]);
-  const undone = bank.filter(w=>!recs[w.en]);
-  const hard = done.filter(w=>isHard(w.en));
-  const other = done.filter(w=>!isHard(w.en));
-  const repeatMax = Math.ceil(n/6);
+  const t = todayState();
+  const usedToday = new Set();
+  t.batches.forEach(function(b){ (b.words || []).forEach(function(en){ usedToday.add(en); }); });
+  const lastUsed = lastUsedMap();
+  const freshLine = daysAgoISO(7);
+  const neverUsed = [], stale = [], recent = [];
+  bank.forEach(function(w){
+    if(usedToday.has(w.en)) return;
+    const lu = lastUsed[w.en];
+    if(!lu) neverUsed.push(w);
+    else if(lu < freshLine) stale.push(w);
+    else recent.push(w);
+  });
+  const repeatMax = Math.ceil(n / 6);
+  const reviewPool = stale.concat(recent).sort(function(a,b){
+    const ra = dict.records[a.en] || {count:0, err:0};
+    const rb = dict.records[b.en] || {count:0, err:0};
+    const ha = (ra.count && ra.err / ra.count >= 0.4) ? 1 : 0;
+    const hb = (rb.count && rb.err / rb.count >= 0.4) ? 1 : 0;
+    if(ha !== hb) return hb - ha;
+    const la = lastUsed[a.en] || '', lb = lastUsed[b.en] || '';
+    return la < lb ? -1 : (la > lb ? 1 : 0);
+  });
   const parts = [];
-  parts.push(...hard.slice(0, repeatMax));
-  parts.push(...undone);
-  const used = new Set(parts.map(w=>w.en));
-  parts.push(...other.filter(w=>!used.has(w.en)));
+  parts.push.apply(parts, reviewPool.slice(0, repeatMax));
+  parts.push.apply(parts, neverUsed);
+  parts.push.apply(parts, stale);
+  parts.push.apply(parts, recent);
+  const picked = new Set(parts.map(function(w){ return w.en; }));
   let i = 0;
-  while(parts.length < n && bank.length){ parts.push(bank[i % bank.length]); i++; }
-  return parts.slice(0, n).map(w=>w.en);
+  while(parts.length < n && bank.length && i < bank.length * 3){
+    const w = bank[i % bank.length];
+    if(!usedToday.has(w.en) && !picked.has(w.en)){ parts.push(w); picked.add(w.en); }
+    i++;
+  }
+  const result = parts.slice(0, n).map(function(w){ return w.en; });
+  dict.batchHist = dict.batchHist || [];
+  dict.batchHist.push({ date: todayStr(), words: result });
+  if(dict.batchHist.length > 120) dict.batchHist = dict.batchHist.slice(-120);
+  saveTodayState();
+  return result;
 }
 function currentBatch(){
   const t = todayState();
